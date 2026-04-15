@@ -10,7 +10,9 @@ export class MainMenu extends Scene
 
 
     private makeClickableText(x: number, y: number, label: string, onClick: () => void) {
-        return this.add
+        const bg = this.add.image(x, y, "blue_button").setOrigin(0.5).setScale(0.1);
+
+        const text = this.add
             .text(x, y, label, {
                 fontFamily: "Arial Black",
                 fontSize: 38,
@@ -20,14 +22,17 @@ export class MainMenu extends Scene
                 align: "center",
             })
             .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
+
+        bg.setInteractive({ useHandCursor: true })
             .on("pointerdown", onClick)
-            .on("pointerover", function (this: GameObjects.Text) {
-                this.setColor("#d0ff00");
+            .on("pointerover", () => {
+                bg.setTint(0xcccccc);
             })
-            .on("pointerout", function (this: GameObjects.Text) {
-                this.setColor("#ffffff");
+            .on("pointerout", () => {
+                bg.clearTint();
             });
+
+        return text;
     }
     
     constructor ()
@@ -38,19 +43,22 @@ export class MainMenu extends Scene
     create() {
         this.background = this.add.image(512, 384, 'background');
         
-        this.gameTitle = this.add.text(300, 200, "Sasa Spaces", {
-            fontFamily: "Arial Black",
-            fontSize: 60,
+        this.gameTitle = this.add.text(512, 200, "Sasa Spaces", {
+            fontFamily: "Bakbak One",
+            fontSize: 110,
             color: "#00aeff",
-            stroke: "#ffffff",
-            strokeThickness: 12,
             align: "center"
-        });
+        }).setOrigin(0.5);
 
-        this.playTitle = this.makeClickableText(512, 460, 'Play', () => {
-            this.scene.start('Game');
+        const gradient = this.gameTitle.context.createLinearGradient(0, 0, this.gameTitle.width, 0);
+        gradient.addColorStop(0, "#00EFFF");
+        gradient.addColorStop(1, "#FFCC00");
+        this.gameTitle.setFill(gradient);
+
+        this.playTitle = this.makeClickableText(512, 380, 'Play', () => {
+            this.scene.start('LevelMenu');
         });
-        this.settingTitle = this.makeClickableText(512, 520, "Setting", () => {
+        this.settingTitle = this.makeClickableText(512, 480, "Setting", () => {
             this.scene.start("Setting");
         });
         this.tutorialTitle = this.makeClickableText(512, 580, "Tutorial", () => {

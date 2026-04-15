@@ -1,4 +1,5 @@
 import { Scene } from "phaser";
+import { createAnimations } from "../data/animations";
 
 export class Preloader extends Scene {
     constructor() {
@@ -15,10 +16,16 @@ export class Preloader extends Scene {
         //  This is the progress bar itself. It will increase in size from the left based on the % of progress.
         const bar = this.add.rectangle(512 - 230, 384, 4, 28, 0xffffff);
 
+        const percentText = this.add.text(512, 384 + 28, "0%", {
+            fontSize: "18px",
+            color: "#ffffff",
+        }).setOrigin(0.5, 0);
+
         //  Use the 'progress' event emitted by the LoaderPlugin to update the loading bar
         this.load.on("progress", (progress: number) => {
             //  Update the progress bar (our bar is 464px wide, so 100% = 464px)
             bar.width = 4 + 460 * progress;
+            percentText.setText(Math.floor(progress * 100) + "%");
         });
     }
 
@@ -27,13 +34,35 @@ export class Preloader extends Scene {
         this.load.setPath("assets");
 
         this.load.image("logo", "logo.png");
+        this.load.image("card_sample", "cards/sample_card.png");
+
+        this.load.path = "assets/ui/button/";
+        this.load.image("blue_button", "blue.png");
+        this.load.image("yellow_button", "yellow.png")
+        this.load.path = "assets/ui/box/";
+        this.load.image("blue_box", "blue.png");
+        this.load.path = "assets/ui/overheat/";
+
+        // Overheat UI
+        for (let i = 1; i <= 8; i++) {
+            this.load.image(`overheat${i}`, `overheat${i}.png`);
+        }
+
+        this.load.path = "assets/ui/spaceship/";
+        // Spaceship UI
+        for (let i = 1; i <= 8; i++) {
+            this.load.image(`spaceship${i}`, `spaceship${i}.png`);
+        }
+        this.load.path = "assets/cards/";
+        this.load.image("card_sample", "sample_card.png");
     }
 
     create() {
-        //  When all the assets have loaded, it's often worth creating global objects here that the rest of the game can use.
-        //  For example, you can define global animations here, so we can use them in other scenes.
-
-        //  Move to the MainMenu. You could also swap this for a Scene Transition, such as a camera fade.
-        this.scene.start("MainMenu");
+        createAnimations(this.anims);
+        this.scene.transition({
+            target: "MainMenu",
+            duration: 500,
+            moveBelow: true,
+        });
     }
 }

@@ -6,6 +6,7 @@ import { AUTO, Game, Scale } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { Setting } from "./scenes/Setting";
 import { Tutorial } from "./scenes/Tutorial";
+import { LevelMenu } from './scenes/LevelMenu';
 
 //  Find out more information about the Game Config at:
 //  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -14,7 +15,6 @@ const config: Phaser.Types.Core.GameConfig = {
     width: 1024,
     height: 768,
     parent: 'game-container',
-    backgroundColor: '#008cff',
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH,
@@ -28,6 +28,7 @@ const config: Phaser.Types.Core.GameConfig = {
         Setting,
         Tutorial,
         MainGame,
+        LevelMenu,
         GameOver,
     ]
 };

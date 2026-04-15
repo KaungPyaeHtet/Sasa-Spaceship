@@ -12,6 +12,9 @@ export default defineConfig({
         },
     },
     server: {
-        port: 8080
+        port: 8080,
+        headers: {
+            "Content-Security-Policy": "script-src 'self' 'unsafe-eval';"
+        }
     }
 });
