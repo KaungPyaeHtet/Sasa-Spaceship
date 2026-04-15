@@ -10,11 +10,24 @@ export class MainMenu extends Scene
 
 
     private makeClickableText(x: number, y: number, label: string, onClick: () => void) {
-        return this.add.text(x, y, label, {
-            fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
-            align: 'center'
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true}).on('pointerdown', onClick)
+        return this.add
+            .text(x, y, label, {
+                fontFamily: "Arial Black",
+                fontSize: 38,
+                color: "#ffffff",
+                stroke: "#000000",
+                strokeThickness: 8,
+                align: "center",
+            })
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true })
+            .on("pointerdown", onClick)
+            .on("pointerover", function (this: GameObjects.Text) {
+                this.setColor("#d0ff00");
+            })
+            .on("pointerout", function (this: GameObjects.Text) {
+                this.setColor("#ffffff");
+            });
     }
     
     constructor ()
