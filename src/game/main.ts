@@ -7,6 +7,7 @@ import { Preloader } from './scenes/Preloader';
 import { Setting } from "./scenes/Setting";
 import { Tutorial } from "./scenes/Tutorial";
 import { LevelMenu } from './scenes/LevelMenu';
+import { Credits } from './scenes/Credits';
 
 //  Find out more information about the Game Config at:
 //  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -30,6 +31,7 @@ const config: Phaser.Types.Core.GameConfig = {
         MainGame,
         LevelMenu,
         GameOver,
+        Credits,
     ]
 };
 

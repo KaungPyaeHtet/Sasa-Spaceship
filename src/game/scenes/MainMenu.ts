@@ -1,4 +1,5 @@
 import { Scene, GameObjects } from 'phaser';
+import { playHover } from '../ui/sounds';
 
 export class MainMenu extends Scene
 {
@@ -27,6 +28,7 @@ export class MainMenu extends Scene
             .on("pointerdown", onClick)
             .on("pointerover", () => {
                 bg.setTint(0xcccccc);
+                playHover(this);
             })
             .on("pointerout", () => {
                 bg.clearTint();
@@ -63,6 +65,9 @@ export class MainMenu extends Scene
         });
         this.tutorialTitle = this.makeClickableText(512, 580, "Tutorial", () => {
             this.scene.start("Tutorial");
+        });
+        this.makeClickableText(512, 680, "Credits", () => {
+            this.scene.start("Credits");
         });
 
     }

@@ -1,5 +1,6 @@
 import { Scene } from "phaser";
 import { createAnimations } from "../data/animations";
+import { VFX } from "../vfx/VFX";
 
 export class Preloader extends Scene {
     constructor() {
@@ -32,8 +33,6 @@ export class Preloader extends Scene {
     preload() {
         //  Load the assets for the game - Replace with your own assets
         this.load.setPath("assets");
-
-        this.load.image("logo", "logo.png");
         this.load.image("card_sample", "cards/sample_card.png");
 
         this.load.path = "assets/ui/button/";
@@ -53,11 +52,21 @@ export class Preloader extends Scene {
         for (let i = 1; i <= 8; i++) {
             this.load.image(`spaceship${i}`, `spaceship${i}.png`);
         }
+        
+        this.load.path = "assets/audio/";
+        this.load.audio("btn_hover", "button_hover_click.mp3");
+
         this.load.path = "assets/cards/";
-        this.load.image("card_sample", "sample_card.png");
+        this.load.image("boost", "Booster.png");
+        this.load.image("cool", "Cool.png");
+        this.load.image("electricity", "Electricity.png");
+        this.load.image("fuel", "Fuel.png");
+        this.load.image("solar", "Solar.png");
+        this.load.image("titanium", "Titanium.png");
     }
 
     create() {
+        VFX.initTextures(this);
         createAnimations(this.anims);
         this.scene.transition({
             target: "MainMenu",

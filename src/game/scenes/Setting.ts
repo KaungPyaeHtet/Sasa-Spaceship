@@ -1,4 +1,5 @@
 import { Scene, GameObjects, Math as PMath } from "phaser";
+import { playHover } from "../ui/sounds";
 
 // ─── Shared text styles ───────────────────────────────────────────────────────
 
@@ -84,10 +85,11 @@ export class Setting extends Scene {
     }
 
     private buildBackButton() {
+        const scene = this;
         this.add.text(CX, 700, "Back", STYLE_BACK)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true })
-            .on("pointerover", function (this: GameObjects.Text) { this.setColor("#aaaaaa"); })
+            .on("pointerover", function (this: GameObjects.Text) { this.setColor("#aaaaaa"); playHover(scene); })
             .on("pointerout",  function (this: GameObjects.Text) { this.setColor("#ffffff"); })
             .on("pointerdown", () => this.scene.start("MainMenu"));
     }

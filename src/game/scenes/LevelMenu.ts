@@ -1,5 +1,6 @@
 import { Scene } from "phaser";
 import { createBackButton } from "../ui/BackButton";
+import { playHover } from "../ui/sounds";
 
 export class LevelMenu extends Scene {
     constructor() {
@@ -31,6 +32,7 @@ export class LevelMenu extends Scene {
                 .on("pointerdown", () => this.scene.start("Game", { level: i }))
                 .on("pointerover", () => {
                     bg.setTint(0xcccccc);
+                    playHover(this);
                 })
                 .on("pointerout", () => {
                     bg.clearTint();
