@@ -21,15 +21,15 @@ export function createDraggableCard(
     // Full-card image as background
     const img = scene.add.image(0, 0, card.imageKey).setDisplaySize(CARD_W, CARD_H);
 
-    // Dark gradient overlay on bottom half so text is readable
-    const overlay = scene.add.rectangle(0, CARD_H / 4, CARD_W, CARD_H / 2, 0x000000, 0.62);
+    // Dark overlay — hidden by default, fades in on hover
+    const overlay = scene.add.rectangle(0, CARD_H / 4, CARD_W, CARD_H / 2, 0x000000, 0.68).setAlpha(0);
 
-    // Coloured border ring (sits on top, tinted per card type)
+    // Coloured border ring
     const border = scene.add
         .rectangle(0, 0, CARD_W, CARD_H, 0x000000, 0)
         .setStrokeStyle(2, palette.border);
 
-    // Name label — upper area over the image
+    // Name label — hidden by default
     const nameTxt = scene.add.text(0, -CARD_H / 2 + 10, card.name, {
         fontSize: '12px',
         color: '#ffffff',
@@ -38,17 +38,21 @@ export function createDraggableCard(
         stroke: '#000000',
         strokeThickness: 3,
         wordWrap: { width: CARD_W - 10 },
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setAlpha(0);
 
-    // Stats — lower half over the dark overlay
+    // Stats — hidden by default
     const heatSign = card.heat >= 0 ? '+' : '';
+    const resIcon: Record<string, string> = { electricity: '⚡', fuel: '🛢️', titanium: '🔩' };
+    const resLine = card.resource
+        ? `${resIcon[card.resource]} +${card.resourceAmount}`
+        : '❄️ coolant';
     const statsTxt = scene.add.text(
         0, CARD_H / 4 - 14,
-        `⏱ ${card.duration}s  🔥${heatSign}${card.heat}\n📦 +${card.products}  ⭐+${card.points}`,
+        `⏱ ${card.duration}s  🔥${heatSign}${card.heat}\n${resLine}  ⭐+${card.points}`,
         { fontSize: '11px', color: '#ffee88', align: 'center', stroke: '#000000', strokeThickness: 2 }
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 0).setAlpha(0);
 
-    // Description
+    // Description — hidden by default
     const descTxt = scene.add.text(0, CARD_H / 4 + 30, card.description, {
         fontSize: '10px',
         color: '#cccccc',
@@ -56,9 +60,9 @@ export function createDraggableCard(
         stroke: '#000000',
         strokeThickness: 2,
         wordWrap: { width: CARD_W - 10 },
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setAlpha(0);
 
-    // Shine sweep layer (hidden until hover)
+    // Shine sweep layer — hidden by default
     const shine = scene.add
         .rectangle(-80, 0, 28, CARD_H + 10, 0xffffff, 0)
         .setVisible(false);
@@ -70,6 +74,7 @@ export function createDraggableCard(
     container.setData('homeY', y);
     container.setData('dragging', false);
     container.setData('border', border);
+    container.setData('details', [overlay, nameTxt, statsTxt, descTxt]);
 
     // Interactive
     container.setInteractive();
@@ -115,8 +120,10 @@ export function createProcessingSlot(
     });
 
     const heatSign = card.heat >= 0 ? '+' : '';
+    const resIcons: Record<string, string> = { electricity: '⚡', fuel: '🛢️', titanium: '🔩' };
+    const resStr = card.resource ? `${resIcons[card.resource]}+${card.resourceAmount}` : '❄️';
     const infoTxt = scene.add.text(-SLOT_W / 2 + 58, -SLOT_H / 2 + 24,
-        `🔥${heatSign}${card.heat}  📦+${card.products}  ⭐+${card.points}`,
+        `🔥${heatSign}${card.heat}  ${resStr}  ⭐+${card.points}`,
         { fontSize: '10px', color: '#ffcc00' }
     );
 

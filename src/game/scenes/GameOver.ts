@@ -1,11 +1,16 @@
 import { Scene } from 'phaser';
 import { playHover } from '../ui/sounds';
+import { saveLevelResult } from '../data/progress';
 
 interface GameOverData {
-    won: boolean;
-    points: number;
-    products: number;
-    level: { maxHeat: number; targetProducts: number };
+    won:             boolean;
+    stars:           number;
+    reason:          'overheat' | 'timeout';
+    points:          number;
+    products:        number;
+    spaceshipsBuilt: number;
+    levelIndex:      number;
+    level:           { maxHeat: number; electricityNeeded: number; fuelNeeded: number; titaniumNeeded: number };
 }
 
 export class GameOver extends Scene {
@@ -16,64 +21,95 @@ export class GameOver extends Scene {
     }
 
     init(data: GameOverData) {
-        this.gameResult = data ?? { won: false, points: 0, products: 0, level: { maxHeat: 50, targetProducts: 10 } };
+        this.gameResult = data ?? { won: false, stars: 0, reason: 'timeout', points: 0, products: 0, spaceshipsBuilt: 0, levelIndex: 1, level: { maxHeat: 100, electricityNeeded: 10, fuelNeeded: 8, titaniumNeeded: 6 } };
+        saveLevelResult(this.gameResult.levelIndex, this.gameResult.stars);
     }
 
     create() {
-        const { won, points, products, level } = this.gameResult;
+        const { won, stars, reason, points, products, spaceshipsBuilt, level } = this.gameResult;
+        const totalNeeded = level.electricityNeeded + level.fuelNeeded + level.titaniumNeeded;
 
         // ── Background tint ──────────────────────────────────────────────
         this.cameras.main.setBackgroundColor(won ? 0x001a00 : 0x1a0000);
         this.add.image(512, 384, 'background').setAlpha(0.3);
 
         // ── Overlay panel ────────────────────────────────────────────────
-        this.add.rectangle(512, 384, 560, 420, 0x000000, 0.7)
+        this.add.rectangle(512, 384, 560, 460, 0x000000, 0.75)
             .setStrokeStyle(3, won ? 0x22cc88 : 0xff4444);
 
         // ── Headline ─────────────────────────────────────────────────────
-        const headline  = won ? 'MISSION\nCOMPLETE!' : 'GAME\nOVER';
-        const headColor = won ? '#22cc88' : '#ff4444';
+        let headline:  string;
+        let headColor: string;
+        if (!won) {
+            headline  = 'MISSION\nFAILED';
+            headColor = '#ff4444';
+        } else if (stars === 3) {
+            headline  = 'MISSION\nCOMPLETE!';
+            headColor = '#22cc88';
+        } else {
+            headline  = 'MISSION\nPARTIAL';
+            headColor = '#ffcc00';
+        }
 
-        this.add.text(512, 210, headline, {
+        this.add.text(512, 185, headline, {
             fontFamily: 'Arial Black',
-            fontSize: '58px',
+            fontSize: '56px',
             color: headColor,
             stroke: '#000000',
             strokeThickness: 6,
             align: 'center',
         }).setOrigin(0.5);
 
-        // ── Flavour line ─────────────────────────────────────────────────
-        const flavour = won
-            ? 'The spaceship has launched successfully!'
-            : 'The reactor overheated. Systems failure.';
+        // ── Star rating ───────────────────────────────────────────────────
+        const starY = 310;
+        const STAR_SPACING = 64;
+        for (let i = 1; i <= 3; i++) {
+            const filled = i <= stars;
+            this.add.text(512 + (i - 2) * STAR_SPACING, starY,
+                filled ? '★' : '☆',
+                {
+                    fontSize: '52px',
+                    color: filled ? '#ffcc00' : '#444444',
+                    stroke: '#000000',
+                    strokeThickness: 4,
+                }
+            ).setOrigin(0.5);
+        }
 
-        this.add.text(512, 315, flavour, {
-            fontSize: '16px',
+        // ── Flavour line ─────────────────────────────────────────────────
+        const flavourMap: Record<number, string> = {
+            0: reason === 'overheat' ? 'The reactor overheated. Systems failure.' : 'Time\'s up — no ships were built. Mission failed.',
+            1: 'Barely made it — one ship launched in time.',
+            2: 'Good work — two ships are underway!',
+            3: 'Outstanding — three ships launched!',
+        };
+        this.add.text(512, 370, flavourMap[stars] ?? '', {
+            fontSize: '15px',
             color: '#cccccc',
             align: 'center',
         }).setOrigin(0.5);
 
         // ── Stats ────────────────────────────────────────────────────────
-        const statsY = 370;
-
-        this.add.text(380, statsY, '📦 Products\n⭐ Points', {
-            fontSize: '18px',
+        const statsY = 410;
+        this.add.text(370, statsY, '🚀 Spaceships\n📦 Resources\n⭐ Points', {
+            fontSize: '17px',
             color: '#aaaaaa',
             align: 'right',
+            lineSpacing: 4,
         }).setOrigin(1, 0);
 
-        this.add.text(644, statsY,
-            `${products} / ${level.targetProducts}\n${points}`, {
-            fontSize: '18px',
+        this.add.text(650, statsY,
+            `${spaceshipsBuilt}\n${products} / ${totalNeeded}\n${points}`, {
+            fontSize: '17px',
             color: '#ffffff',
             fontStyle: 'bold',
+            lineSpacing: 4,
         }).setOrigin(0, 0);
 
         // ── Buttons ───────────────────────────────────────────────────────
-        this.makeButton(512, 490, 'Play Again', () => this.scene.start('LevelMenu'));
-        this.makeButton(512, 555, 'Main Menu',  () => this.scene.start('MainMenu'));
-        this.makeButton(512, 620, 'Credits',    () => this.scene.start('Credits'));
+        this.makeButton(512, 490, 'Play Again',     () => this.scene.start('LevelMenu'));
+        this.makeButton(512, 555, 'Upgrade Cards',  () => this.scene.start('CardUpgrade'));
+        this.makeButton(512, 620, 'Main Menu',       () => this.scene.start('MainMenu'));
 
         // ── Entrance animation ────────────────────────────────────────────
         this.cameras.main.setAlpha(0);

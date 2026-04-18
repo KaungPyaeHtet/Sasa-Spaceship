@@ -2,13 +2,24 @@ import { Scene } from 'phaser';
 import { playHover } from '../ui/sounds';
 
 // Per-card-type accent colours used for particles, borders, and floats
-export const CARD_COLORS: Record<string, { bg: number; border: number; particle: number }> = {
+const BASE_COLORS = {
     boost:       { bg: 0x2a1000, border: 0xff6600, particle: 0xff6600 },
     cool:        { bg: 0x001a2a, border: 0x00ccff, particle: 0x00ccff },
     electricity: { bg: 0x1a1a00, border: 0xffff00, particle: 0xffff00 },
     fuel:        { bg: 0x1a0800, border: 0xff4422, particle: 0xff4422 },
     solar:       { bg: 0x1a1400, border: 0xffcc00, particle: 0xffcc00 },
     titanium:    { bg: 0x111820, border: 0x88aacc, particle: 0x88aacc },
+    monitor:     { bg: 0x0a1a0a, border: 0x44ff88, particle: 0x44ff88 },
+};
+
+// Auto-alias all tier variants (boost_t1, boost_t2, boost_t3 …)
+export const CARD_COLORS: Record<string, { bg: number; border: number; particle: number }> = {
+    ...BASE_COLORS,
+    ...Object.fromEntries(
+        Object.entries(BASE_COLORS).flatMap(([id, pal]) =>
+            [1, 2, 3].map(t => [`${id}_t${t}`, pal])
+        )
+    ),
 };
 
 export class VFX {
@@ -168,14 +179,26 @@ export class VFX {
             if (container.getData('dragging')) return;
             playHover(scene);
             if (border) border.setStrokeStyle(3, 0xffffff);
+
+            // Scale up — feels like selecting the card
             scene.tweens.add({
                 targets:  container,
-                y:        homeY - 18,
-                scaleX:   1.08,
-                scaleY:   1.08,
-                duration: 160,
+                y:        homeY - 22,
+                scaleX:   1.22,
+                scaleY:   1.22,
+                duration: 180,
                 ease:     'Back.Out',
             });
+
+            // Fade in overlay + text details
+            const details: Phaser.GameObjects.GameObject[] = container.getData('details') ?? [];
+            scene.tweens.add({
+                targets:  details,
+                alpha:    1,
+                duration: 160,
+                ease:     'Quad.Out',
+            });
+
             // Shine sweep
             shine.setVisible(true).setAlpha(0.35);
             shine.x = -80;
@@ -192,13 +215,15 @@ export class VFX {
         container.on('pointermove', (ptr: Phaser.Input.Pointer) => {
             if (container.getData('dragging')) return;
             const localX  = ptr.worldX - container.x;
-            const tiltDeg = Phaser.Math.Clamp((localX / 65) * 7, -7, 7);
-            container.rotation = Phaser.Math.DegToRad(tiltDeg);
+            const tiltDeg = Math.max(-7, Math.min(7, (localX / 65) * 7));
+            container.rotation = tiltDeg * (Math.PI / 180);
         });
 
         container.on('pointerout', () => {
             if (container.getData('dragging')) return;
             if (border) border.setStrokeStyle(2, borderColor);
+
+            // Shrink back
             scene.tweens.add({
                 targets:  container,
                 y:        homeY,
@@ -207,6 +232,15 @@ export class VFX {
                 rotation: 0,
                 duration: 200,
                 ease:     'Back.Out',
+            });
+
+            // Fade out overlay + text details
+            const details: Phaser.GameObjects.GameObject[] = container.getData('details') ?? [];
+            scene.tweens.add({
+                targets:  details,
+                alpha:    0,
+                duration: 140,
+                ease:     'Quad.In',
             });
         });
     }
