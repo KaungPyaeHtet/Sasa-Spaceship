@@ -3,18 +3,19 @@ import { playHover } from '../ui/sounds';
 
 const CREDITS = [
     { role: 'SASA SPACES', name: '', big: true },
-    { role: '',             name: '', big: false },
-    { role: 'Game Design',  name: 'Your Team', big: false },
-    { role: 'Programming',  name: 'Your Team', big: false },
-    { role: 'Art & Assets', name: 'Your Team', big: false },
-    { role: 'Sound',        name: 'Your Team', big: false },
+    { role: '', name: '', big: false },
+    { role: "Game Design", name: "Vincent", big: false},
+    { role: 'Coding',  name: 'Ozzy', big: false },
+    { role: 'Graphic Design & Illustration',  name: 'Kimmy', big: false },
+    { role: 'Audio & Storyline', name: 'Nora', big: false },
+    { role: 'Sound',        name: 'Alex', big: false },
     { role: '',             name: '', big: false },
     { role: 'Special Thanks', name: '', big: true },
     { role: '',             name: '', big: false },
-    { role: 'Phaser 3',     name: 'photonstorm / Phaser Studio', big: false },
+    { role: 'Phaser 3',     name: 'Phaser Studio', big: false },
     { role: 'Made with',    name: 'TypeScript + Vite',           big: false },
     { role: '',             name: '', big: false },
-    { role: '— Thank you for playing —', name: '', big: true },
+    { role: '— Thank you for playing our game :) —', name: '', big: true },
 ];
 
 export class Credits extends Scene {

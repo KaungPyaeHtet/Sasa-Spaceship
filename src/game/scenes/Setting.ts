@@ -1,5 +1,12 @@
 import { Scene, GameObjects, Math as PMath } from "phaser";
 import { playHover } from "../ui/sounds";
+import {
+    volumes,
+    setMusicVolume,
+    setSfxVolume,
+    setVoicelineVolume,
+    setCardSfxVolume,
+} from "../audio/AudioManager";
 
 // ─── Shared text styles ───────────────────────────────────────────────────────
 
@@ -40,9 +47,6 @@ const ROW_GAP = 55;
 export class Setting extends Scene {
     background: GameObjects.Image;
 
-    private masterVol = 1;
-    private musicVol = 0.8;
-    private sfxVol = 1;
 
     constructor() { super("Setting"); }
 
@@ -50,8 +54,8 @@ export class Setting extends Scene {
         this.background = this.add.image(CX, 384, "background");
         this.add.text(CX, 40, "Settings", STYLE_TITLE).setOrigin(0.5);
 
-        this.buildAudioSection(120);
-        this.buildGraphicsSection(340);
+        this.buildAudioSection(100);
+        this.buildGraphicsSection(420);
         this.buildBackButton();
     }
 
@@ -60,17 +64,10 @@ export class Setting extends Scene {
     private buildAudioSection(y: number) {
         this.makeSectionLabel(CX, y, "Audio");
 
-        this.makeSliderRow(y + ROW_GAP,      "Master Volume", this.masterVol, (v) => {
-            this.masterVol = v;
-            this.sound.setVolume(v);
-        });
-        this.makeSliderRow(y + ROW_GAP * 2,  "Music Volume",  this.musicVol, (v) => {
-            this.musicVol = v;
-            // this.sound.get('bgm')?.setVolume(v);
-        });
-        this.makeSliderRow(y + ROW_GAP * 3,  "SFX Volume",    this.sfxVol, (v) => {
-            this.sfxVol = v;
-        });
+        this.makeSliderRow(y + ROW_GAP,     "Music",      volumes.music,      (v) => setMusicVolume(this, v));
+        this.makeSliderRow(y + ROW_GAP * 2, "Card SFX",   volumes.cardSfx,    (v) => setCardSfxVolume(v));
+        this.makeSliderRow(y + ROW_GAP * 3, "SFX",        volumes.sfx,        (v) => setSfxVolume(v));
+        this.makeSliderRow(y + ROW_GAP * 4, "Voiceovers", volumes.voicelines, (v) => setVoicelineVolume(v));
     }
 
     private buildGraphicsSection(y: number) {

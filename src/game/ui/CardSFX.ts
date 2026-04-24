@@ -1,10 +1,7 @@
-/**
- * Synthesised card sound effects using the Web Audio API.
- * No audio files required — all sounds are generated procedurally.
- */
+let _cardVolume = 1.0;
+export function setCardVolume(v: number) { _cardVolume = v; }
 
 function ctx(): AudioContext {
-    // Reuse a single AudioContext across calls
     if (!(window as unknown as Record<string, unknown>)._sfxCtx) {
         (window as unknown as Record<string, unknown>)._sfxCtx = new AudioContext();
     }
@@ -71,50 +68,13 @@ function noise(
     src.start(startTime);
 }
 
-// ─── Per-card sounds ──────────────────────────────────────────────────────────
+// ─── Card drop sound ──────────────────────────────────────────────────────────
 
-/** ⚡ Electric crackle — sharp high buzz */
-function playElectricity() {
+function playCardDrop() {
     const ac = ctx();
     const t  = ac.currentTime;
     const master = ac.createGain();
-    master.gain.value = 0.35;
-    master.connect(ac.destination);
-    noise(ac, master, t,        0.08, 0.8, 4000);
-    noise(ac, master, t + 0.05, 0.06, 0.5, 8000);
-    osc(ac, master, 'sawtooth', 880, t, 220, 0.12, 0.18);
-    osc(ac, master, 'square',  1760, t, 440, 0.08, 0.10);
-}
-
-/** ☀️ Solar — soft warm chime */
-function playSolar() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.35;
-    master.connect(ac.destination);
-    osc(ac, master, 'sine', 660,  t,       600,  0.5,  0.18);
-    osc(ac, master, 'sine', 990,  t + 0.04, 880, 0.45, 0.14);
-    osc(ac, master, 'sine', 1320, t + 0.08, 1100, 0.4, 0.12);
-}
-
-/** 🛢️ Fuel — low whoosh thud */
-function playFuel() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.4;
-    master.connect(ac.destination);
-    osc(ac, master, 'sine', 120, t, 40, 0.22, 0.5);
-    noise(ac, master, t, 0.18, 0.6, 300);
-}
-
-/** 🚀 Boost — explosive burst */
-function playBoost() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.45;
+    master.gain.value = 0.45 * _cardVolume;
     master.connect(ac.destination);
     noise(ac, master, t,        0.06, 1.0, 600);
     noise(ac, master, t + 0.04, 0.15, 0.7, 200);
@@ -122,71 +82,17 @@ function playBoost() {
     osc(ac, master, 'square',   400, t + 0.02, 100, 0.10, 0.4);
 }
 
-/** 🔩 Titanium — metallic clang */
-function playTitanium() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.38;
-    master.connect(ac.destination);
-    osc(ac, master, 'sine',  440, t, 330, 0.35, 0.45);
-    osc(ac, master, 'sine',  880, t, 660, 0.30, 0.25);
-    osc(ac, master, 'sine', 1320, t, 990, 0.20, 0.15);
-    noise(ac, master, t, 0.05, 0.3, 5000);
-}
-
-/** ❄️ Cool — icy whoosh sweep */
-function playCool() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.32;
-    master.connect(ac.destination);
-    noise(ac, master, t, 0.3, 0.5, 2000);
-    osc(ac, master, 'sine', 1200, t,       2400, 0.25, 0.22);
-    osc(ac, master, 'sine', 1600, t + 0.05, 3200, 0.18, 0.18);
-}
-
-/** 🖥️ Monitor — digital scan beep */
-function playMonitor() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.3;
-    master.connect(ac.destination);
-    osc(ac, master, 'square', 880,  t,        880,  0.06, 0.3);
-    osc(ac, master, 'square', 1100, t + 0.07, 1100, 0.06, 0.3);
-    osc(ac, master, 'square', 1320, t + 0.14, 1320, 0.06, 0.3);
-}
-
-/** Generic card-drop swoosh (fallback) */
-function playSwoosh() {
-    const ac = ctx();
-    const t  = ac.currentTime;
-    const master = ac.createGain();
-    master.gain.value = 0.3;
-    master.connect(ac.destination);
-    noise(ac, master, t, 0.12, 0.5, 1200);
-    osc(ac, master, 'sine', 300, t, 100, 0.12, 0.22);
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-const CARD_SOUNDS: Record<string, () => void> = {
-    electricity: playElectricity,
-    solar:       playSolar,
-    fuel:        playFuel,
-    boost:       playBoost,
-    titanium:    playTitanium,
-    cool:        playCool,
-    monitor:     playMonitor,
-};
+// Cards handled by file-based audio (played via AudioManager.playSFX in Game.ts)
+const FILE_SOUNDS = new Set(['cool']);
 
-/** Play the sound effect for a card id (e.g. 'boost', 'cool'). */
-export function playCardSFX(cardId: string) {
+/** Play the sound effect for a card id. Returns true if handled by file audio. */
+export function playCardSFX(cardId: string): boolean {
+    if (FILE_SOUNDS.has(cardId)) return true;
     try {
         resumeAudioContext();
-        const play = CARD_SOUNDS[cardId] ?? playSwoosh;
-        play();
+        playCardDrop();
     } catch { /* AudioContext blocked — silently skip */ }
+    return false;
 }

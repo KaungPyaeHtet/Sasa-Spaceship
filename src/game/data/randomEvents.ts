@@ -16,7 +16,7 @@ export const RANDOM_EVENTS: GameEvent[] = [
         desc:     'Impact tremors spike reactor heat!',
         color:    0xff4400,
         duration: 5,
-        minLevel: 3,  // introduced gently at level 3
+        minLevel: 3,
     },
     {
         key:      'solar_flare',
@@ -25,7 +25,7 @@ export const RANDOM_EVENTS: GameEvent[] = [
         desc:     'Solar radiation doubles heat build-up!',
         color:    0xffcc00,
         duration: 6,
-        minLevel: 5,  // added at level 5 once player is comfortable
+        minLevel: 5,
     },
     {
         key:      'system_glitch',
@@ -34,6 +34,6 @@ export const RANDOM_EVENTS: GameEvent[] = [
         desc:     'Processing systems malfunction!',
         color:    0x44aaff,
         duration: 4,
-        minLevel: 7,  // hardest event, only from level 7 onwards
+        minLevel: 7,
     },
 ];

@@ -42,13 +42,13 @@ export function createDraggableCard(
 
     // Stats — hidden by default
     const heatSign = card.heat >= 0 ? '+' : '';
-    const resIcon: Record<string, string> = { electricity: '⚡', fuel: '🛢️', titanium: '🔩' };
+    const resAbbr: Record<string, string> = { electricity: 'ELEC', fuel: 'FUEL', titanium: 'TITA' };
     const resLine = card.resource
-        ? `${resIcon[card.resource]} +${card.resourceAmount}`
-        : '❄️ coolant';
+        ? `+${card.resourceAmount} ${resAbbr[card.resource]}`
+        : 'COOLANT';
     const statsTxt = scene.add.text(
         0, CARD_H / 4 - 14,
-        `⏱ ${card.duration}s  🔥${heatSign}${card.heat}\n${resLine}  ⭐+${card.points}`,
+        `${card.duration}s  HEAT ${heatSign}${card.heat}\n${resLine}  ★ +${card.points}`,
         { fontSize: '11px', color: '#ffee88', align: 'center', stroke: '#000000', strokeThickness: 2 }
     ).setOrigin(0.5, 0).setAlpha(0);
 
@@ -120,10 +120,10 @@ export function createProcessingSlot(
     });
 
     const heatSign = card.heat >= 0 ? '+' : '';
-    const resIcons: Record<string, string> = { electricity: '⚡', fuel: '🛢️', titanium: '🔩' };
-    const resStr = card.resource ? `${resIcons[card.resource]}+${card.resourceAmount}` : '❄️';
+    const resAbbr: Record<string, string> = { electricity: 'ELEC', fuel: 'FUEL', titanium: 'TITA' };
+    const resStr = card.resource ? `+${card.resourceAmount} ${resAbbr[card.resource]}` : 'COOLANT';
     const infoTxt = scene.add.text(-SLOT_W / 2 + 58, -SLOT_H / 2 + 24,
-        `🔥${heatSign}${card.heat}  ${resStr}  ⭐+${card.points}`,
+        `H:${heatSign}${card.heat}  ${resStr}  ★+${card.points}`,
         { fontSize: '10px', color: '#ffcc00' }
     );
 

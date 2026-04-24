@@ -91,25 +91,17 @@ export class GameOver extends Scene {
 
         // ── Stats ────────────────────────────────────────────────────────
         const statsY = 410;
-        this.add.text(370, statsY, '🚀 Spaceships\n📦 Resources\n⭐ Points', {
+        this.add.text(370, statsY, 'Spaceships', {
             fontSize: '17px',
             color: '#aaaaaa',
             align: 'right',
             lineSpacing: 4,
         }).setOrigin(1, 0);
 
-        this.add.text(650, statsY,
-            `${spaceshipsBuilt}\n${products} / ${totalNeeded}\n${points}`, {
-            fontSize: '17px',
-            color: '#ffffff',
-            fontStyle: 'bold',
-            lineSpacing: 4,
-        }).setOrigin(0, 0);
 
         // ── Buttons ───────────────────────────────────────────────────────
-        this.makeButton(512, 490, 'Play Again',     () => this.scene.start('LevelMenu'));
-        this.makeButton(512, 555, 'Upgrade Cards',  () => this.scene.start('CardUpgrade'));
-        this.makeButton(512, 620, 'Main Menu',       () => this.scene.start('MainMenu'));
+        this.makeButton(512, 520, 'Play Again', () => this.scene.start('LevelMenu'));
+        this.makeButton(512, 600, 'Main Menu',  () => this.scene.start('MainMenu'));
 
         // ── Entrance animation ────────────────────────────────────────────
         this.cameras.main.setAlpha(0);

@@ -1,5 +1,6 @@
 import { Scene, GameObjects } from 'phaser';
 import { playHover } from '../ui/sounds';
+import { playMusic } from '../audio/AudioManager';
 
 export class MainMenu extends Scene
 {
@@ -7,7 +8,6 @@ export class MainMenu extends Scene
     playTitle: GameObjects.Text;
     settingTitle: GameObjects.Text;
     tutorialTitle: GameObjects.Text;
-    gameTitle: GameObjects.Text;
 
 
     private makeClickableText(x: number, y: number, label: string, onClick: () => void) {
@@ -15,7 +15,7 @@ export class MainMenu extends Scene
 
         const text = this.add
             .text(x, y, label, {
-                fontFamily: "Arial Black",
+                fontFamily: "Supercharge",
                 fontSize: 38,
                 color: "#ffffff",
                 stroke: "#000000",
@@ -43,19 +43,10 @@ export class MainMenu extends Scene
     }
 
     create() {
+        playMusic(this);
         this.background = this.add.image(512, 384, 'background');
         
-        this.gameTitle = this.add.text(512, 200, "Sasa Spaces", {
-            fontFamily: "Bakbak One",
-            fontSize: 110,
-            color: "#00aeff",
-            align: "center"
-        }).setOrigin(0.5);
-
-        const gradient = this.gameTitle.context.createLinearGradient(0, 0, this.gameTitle.width, 0);
-        gradient.addColorStop(0, "#00EFFF");
-        gradient.addColorStop(1, "#FFCC00");
-        this.gameTitle.setFill(gradient);
+        this.add.image(512, 200, 'logo').setOrigin(0.5).setScale(0.15);
 
         this.playTitle = this.makeClickableText(512, 380, 'Play', () => {
             this.scene.start('LevelMenu');

@@ -9,11 +9,11 @@ import {
 } from '../ui/CardDisplay';
 import { VFX, CARD_COLORS } from '../vfx/VFX';
 import { RANDOM_EVENTS, GameEvent } from '../data/randomEvents';
-import { getCardTier } from '../data/progress';
-import { getCardAtTier } from '../data/cardUpgrades';
+import { getCardAtTier, tierForLevel } from '../data/cardUpgrades';
 import { playCardSFX, resumeAudioContext } from '../ui/CardSFX';
+import { stopMusic, playSFX, AUDIO } from '../audio/AudioManager';
 
-const HAND_SIZE         = 4;
+const HAND_SIZE         = 3;
 const MAX_PROC_SLOTS    = 3;
 const POWER_UNLOCK_COST = 20;
 const DROP_ZONE_X       = 512;
@@ -23,8 +23,8 @@ const DROP_ZONE_H       = 240;
 
 const RES_ICON: Record<string, string> = {
     electricity: '⚡',
-    fuel:        '🛢️',
-    titanium:    '🔩',
+    fuel:        '◉',
+    titanium:    '◆',
 };
 const RES_COLOR: Record<string, number> = {
     electricity: 0xffff44,
@@ -66,11 +66,16 @@ export class Game extends Scene {
     private timerText:     Phaser.GameObjects.Text;
     private timerBar:      Phaser.GameObjects.Rectangle;
     private gameEnded = false;
+    private evaluatingResult = false;
 
     // ── Spaceship launches ────────────────────────────────────────────────
     private spaceshipsBuilt    = 0;
     private shipLaunchInProgress = false;
-    private shipCountTxt!: Phaser.GameObjects.Text;
+    private shipCountTxt!:     Phaser.GameObjects.Text;
+    private unlockBtnBg!:      Phaser.GameObjects.Rectangle;
+    private unlockBtnFill!:    Phaser.GameObjects.Rectangle;
+    private unlockBtnIcon!:    Phaser.GameObjects.Text;
+    private unlockPulseTween:  Phaser.Tweens.Tween | null = null;
 
     // ── Monitor card ──────────────────────────────────────────────────────
     private monitorActive  = false;
@@ -96,20 +101,36 @@ export class Game extends Scene {
         this.machineStage        = 0;
         this.timeRemaining       = this.levelData.timeLimit;
         this.gameEnded           = false;
+        this.evaluatingResult    = false;
         this.spaceshipsBuilt     = 0;
         this.shipLaunchInProgress = false;
+        this.monitorActive    = false;
+        this.monitorTimeLeft  = 0;
+        this.heatMultiplier   = 1;
+        this.processingPaused = false;
+        this.nextCardPreview  = null;
+        this.activeEvent      = null;
+        this.eventTimeLeft    = 0;
+        this.unlockPulseTween = null;
     }
 
     create() {
         this.add.image(512, 384, 'background');
         VFX.ambientParticles(this);
 
-        // Background music — loop for the whole session
-        if (!this.sound.get('bg_music')) {
-            this.sound.add('bg_music', { loop: true, volume: 0.12 }).play();
-        }
+        // Stop menu music when game starts
+        stopMusic(this);
 
         createBackButton(this, 'LevelMenu');
+
+        // Settings icon (top-right)
+        const settingBtn = this.add.image(990, 32, 'setting_button')
+            .setDisplaySize(42, 42)
+            .setDepth(20)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', () => settingBtn.setAlpha(0.75))
+            .on('pointerout',  () => settingBtn.setAlpha(1))
+            .on('pointerdown', () => { this.scene.pause(); this.scene.launch('PauseMenu'); });
 
         // ── Countdown timer (top-centre) ──────────────────────────────────
         const TIMER_W = 220;
@@ -123,10 +144,12 @@ export class Game extends Scene {
         }).setOrigin(0.5, 0).setDepth(10);
 
         // ── Spaceship counter (below timer) ───────────────────────────────
-        this.shipCountTxt = this.add.text(TIMER_X, 48, '🚀 ×0', {
-            fontSize: '13px', color: '#88ffcc', fontStyle: 'bold',
-            stroke: '#000000', strokeThickness: 3, align: 'center',
-        }).setOrigin(0.5, 0).setDepth(10);
+        this.add.image(TIMER_X - 22, 57, this.shipKeyForLevel())
+            .setDisplaySize(18, 18).setOrigin(0.5).setDepth(10);
+        this.shipCountTxt = this.add.text(TIMER_X - 10, 57, '0 / 3', {
+            fontSize: '13px', color: '#555555', fontStyle: 'bold',
+            stroke: '#000000', strokeThickness: 3,
+        }).setOrigin(0, 0.5).setDepth(10);
 
         // ── Machine image in drop zone ────────────────────────────────────
         this.machineImg = this.add.sprite(DROP_ZONE_X, DROP_ZONE_Y, 'machine1')
@@ -271,58 +294,95 @@ export class Game extends Scene {
 
     private buildHeatBar() {
         const BAR_W = 180;
-        const BAR_X = 1024 - BAR_W - 12;
-        const BAR_H = 16;
-        const y     = 20;
+        const BAR_X = 1024 - BAR_W - 16;
+        const BAR_H = 20;
+        const y     = 44;
 
-        this.add.text(BAR_X, y - 14, '🔥 HEAT', { fontSize: '11px', color: '#ff6644', fontStyle: 'bold' }).setDepth(8);
+        this.add.text(BAR_X, y - 32, '🔥 HEAT', { fontSize: '13px', color: '#ff6644', fontStyle: 'bold' }).setDepth(8);
         this.add.rectangle(BAR_X + BAR_W / 2, y, BAR_W, BAR_H, 0x222222).setDepth(8);
         this.heatBarFill = this.add.rectangle(BAR_X, y, 0, BAR_H, 0xff4400).setOrigin(0, 0.5).setDepth(9);
         this.heatBarLabel = this.add.text(BAR_X + BAR_W / 2, y, '0', {
-            fontSize: '10px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
-        }).setOrigin(0.5).setDepth(10).setAlpha(0); // hidden until Monitor card used
+            fontSize: '11px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(10).setAlpha(0);
     }
 
     private buildComboPanel() {
         const BAR_W  = 180;
-        const BAR_X  = 1024 - BAR_W - 12;
-        const panelY = 178; // below the 3 resource bars
+        const BAR_X  = 1024 - BAR_W - 16;
+        const panelY = 260;
 
-        const combos = [
-            { label: '⚡ + 🚀 Boost',     effect: 'x2 electricity speed' },
-            { label: '🛢️ + 🚀 Boost',     effect: 'x2 fuel output'       },
-            { label: '⚡ + ☀️ Solar',      effect: '+3 bonus electricity'  },
-            { label: '❄️ + 🔥 any hot',   effect: 'extra -8 heat'         },
-            { label: '🔩 + 🚀 Boost',     effect: 'x2 titanium output'    },
+        const combos: { card1: string; card2: string; effect: string }[] = [
+            { card1: 'electricity_t1', card2: 'boost_t1',       effect: 'x2 electricity speed' },
+            { card1: 'fuel_t1',        card2: 'boost_t1',       effect: 'x2 fuel output'       },
+            { card1: 'electricity_t1', card2: 'solar_t1',       effect: '+3 bonus electricity'  },
+            { card1: 'cool_t1',        card2: 'fuel_t1',        effect: 'extra -8 heat'         },
+            { card1: 'titanium_t1',    card2: 'boost_t1',       effect: 'x2 titanium output'   },
         ];
 
-        // Panel background
-        const panelH = 14 + combos.length * 30 + 10;
-        this.add.rectangle(BAR_X + BAR_W / 2, panelY + panelH / 2, BAR_W + 8, panelH, 0x0a1020, 0.85)
-            .setStrokeStyle(1, 0x334466)
-            .setDepth(7);
+        const ROW_H  = 44;
+        const CARD_W = 26;
+        const CARD_H = 37;
+        const panelH = 20 + combos.length * ROW_H + 6;
 
-        this.add.text(BAR_X + BAR_W / 2, panelY + 6, '✨ COMBOS', {
-            fontSize: '10px', color: '#aaccff', fontStyle: 'bold', align: 'center',
-        }).setOrigin(0.5, 0).setDepth(8);
+        // ── Collapsible panel (hidden by default) ─────────────────────────
+        const panel = this.add.container(0, 0).setDepth(20).setAlpha(0).setVisible(false);
+
+        const bg = this.add.rectangle(BAR_X + BAR_W / 2, panelY + panelH / 2, BAR_W + 8, panelH, 0x0a1020, 0.95)
+            .setStrokeStyle(1, 0x334466);
+        panel.add(bg);
+
+        panel.add(this.add.text(BAR_X + BAR_W / 2, panelY + 6, 'COMBOS', {
+            fontSize: '11px', color: '#aaccff', fontStyle: 'bold', align: 'center',
+        }).setOrigin(0.5, 0));
 
         combos.forEach((c, i) => {
-            const cy = panelY + 24 + i * 30;
-            this.add.text(BAR_X + 4, cy, c.label, {
-                fontSize: '10px', color: '#ddddff',
-            }).setDepth(8);
-            this.add.text(BAR_X + 4, cy + 12, `  → ${c.effect}`, {
-                fontSize: '9px', color: '#88ccaa',
-            }).setDepth(8);
+            const cy = panelY + 20 + i * ROW_H + ROW_H / 2;
+
+            // card 1
+            panel.add(this.add.image(BAR_X + 4 + CARD_W / 2, cy - 4, c.card1)
+                .setDisplaySize(CARD_W, CARD_H));
+            // "+"
+            panel.add(this.add.text(BAR_X + 4 + CARD_W + 4, cy - 4, '+', {
+                fontSize: '12px', color: '#aaaaaa',
+            }).setOrigin(0, 0.5));
+            // card 2
+            panel.add(this.add.image(BAR_X + 4 + CARD_W + 14 + CARD_W / 2, cy - 4, c.card2)
+                .setDisplaySize(CARD_W, CARD_H));
+            // effect
+            panel.add(this.add.text(BAR_X + 4 + CARD_W * 2 + 20, cy - 10, `→ ${c.effect}`, {
+                fontSize: '9px', color: '#88ccaa', wordWrap: { width: 80 },
+            }).setOrigin(0, 0));
         });
+
+        // ── ? toggle button ───────────────────────────────────────────────
+        let open = false;
+        const btnX = BAR_X + BAR_W - 10;
+        const btnY = panelY - 14;
+
+        const btnBg = this.add.circle(btnX, btnY, 10, 0x223355).setDepth(21).setInteractive({ useHandCursor: true });
+        const btnTxt = this.add.text(btnX, btnY, '?', {
+            fontSize: '13px', color: '#aaccff', fontStyle: 'bold',
+        }).setOrigin(0.5).setDepth(22);
+
+        const toggle = () => {
+            open = !open;
+            panel.setVisible(open);
+            this.tweens.add({ targets: panel, alpha: open ? 1 : 0, duration: 150 });
+            btnBg.setFillStyle(open ? 0x334488 : 0x223355);
+            btnTxt.setColor(open ? '#ffffff' : '#aaccff');
+        };
+
+        btnBg.on('pointerdown', toggle)
+             .on('pointerover', () => btnBg.setFillStyle(0x334488))
+             .on('pointerout',  () => btnBg.setFillStyle(open ? 0x334488 : 0x223355));
     }
 
     private buildResourceBars() {
         const BAR_W  = 180;
-        const BAR_X  = 1024 - BAR_W - 12;
-        const BAR_H  = 16;
-        const startY = 56;
-        const gap    = 36;
+        const BAR_X  = 1024 - BAR_W - 16;
+        const BAR_H  = 20;
+        const startY = 110;
+        const gap    = 56;
 
         (['electricity', 'fuel', 'titanium'] as ResourceType[]).forEach((res, i) => {
             if (!res) return;
@@ -330,23 +390,38 @@ export class Game extends Scene {
             const y = startY + i * gap;
             const color = RES_COLOR[res];
 
-            this.add.text(BAR_X, y - 14, `${RES_ICON[res]} ${res.toUpperCase()}`, {
-                fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
-            }).setDepth(8);
+            this.add.image(BAR_X + 10, y - 32, `${res}_t1`)
+                .setDisplaySize(20, 28).setDepth(8).setOrigin(0.5);
+            this.add.text(BAR_X + 24, y - 32, res.toUpperCase(), {
+                fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+            }).setDepth(8).setOrigin(0, 0.5);
             this.add.rectangle(BAR_X + BAR_W / 2, y, BAR_W, BAR_H, 0x222222).setDepth(8);
 
             this.resBarFills[res] = this.add.rectangle(BAR_X, y, 0, BAR_H, color)
                 .setOrigin(0, 0.5).setDepth(9);
             this.resBarLabels[res] = this.add.text(BAR_X + BAR_W / 2, y, `0 / ${needed}`, {
-                fontSize: '10px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
-            }).setOrigin(0.5).setDepth(10).setAlpha(0); // hidden until Monitor card used
+                fontSize: '11px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
+            }).setOrigin(0.5).setDepth(10).setAlpha(0);
         });
     }
 
     // ── Card logic ─────────────────────────────────────────────────────────
 
     private buildShuffledDeck(): Card[] {
-        const pool = [...cardDefinitions, ...cardDefinitions];
+        const weights: Record<string, number> = {
+            electricity: 4,
+            fuel:        4,
+            titanium:    4,
+            cool:        3,
+            boost:       3,
+            solar:       2,
+            monitor:     1,
+        };
+        const pool: Card[] = [];
+        for (const card of cardDefinitions) {
+            const count = weights[card.id] ?? 1;
+            for (let i = 0; i < count; i++) pool.push(card);
+        }
         for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -357,7 +432,7 @@ export class Game extends Scene {
     private drawCard(): Card {
         if (this.deck.length === 0) this.deck = this.buildShuffledDeck();
         const base = this.deck.pop()!;
-        return getCardAtTier(base.id, getCardTier(base.id));
+        return getCardAtTier(base.id, tierForLevel(this.levelIndex), this.levelIndex);
     }
 
     private dealHand() {
@@ -371,9 +446,27 @@ export class Game extends Scene {
             container.setData('slotIndex', i);
             this.hand[i] = container;
         }
+        if (this.monitorActive) this.refreshNextCardPreview();
+    }
+
+    private refreshNextCardPreview() {
+        if (this.nextCardPreview) { this.nextCardPreview.destroy(); this.nextCardPreview = null; }
+        if (this.deck.length === 0) return;
+
+        const nextCard = getCardAtTier(this.deck[this.deck.length - 1].id, tierForLevel(this.levelIndex), this.levelIndex);
+        const spacing  = 150;
+        const px = 512 + ((HAND_SIZE - 1) * spacing) / 2 + spacing;
+        const py = 768 - 110;
+        const img    = this.add.image(0, 0, nextCard.imageKey).setDisplaySize(130, 190);
+        const border = this.add.rectangle(0, 0, 130, 190, 0x000000, 0).setStrokeStyle(2, 0x44ff88);
+        const badge  = this.add.rectangle(0, -74, 100, 22, 0x000000, 0.85).setStrokeStyle(1, 0x44ff88);
+        const lbl    = this.add.text(0, -74, 'NEXT DRAW', { fontSize: '10px', color: '#44ff88', fontStyle: 'bold' }).setOrigin(0.5);
+        this.nextCardPreview = this.add.container(px, py, [img, border, badge, lbl]).setDepth(20).setAlpha(0);
+        this.tweens.add({ targets: this.nextCardPreview, alpha: 0.85, duration: 300 });
     }
 
     private playCard(container: Phaser.GameObjects.Container) {
+        if (this.gameEnded) return;
         const slotIndex: number = container.getData('slotIndex');
         const card: Card        = container.getData('card');
         const palette           = CARD_COLORS[card.imageKey] ?? { particle: 0x4488ff };
@@ -391,7 +484,7 @@ export class Game extends Scene {
         }
 
         resumeAudioContext();
-        playCardSFX(card.id);
+        if (playCardSFX(card.id)) playSFX(this, AUDIO.CARD_COOL);
         VFX.burst(this, DROP_ZONE_X, DROP_ZONE_Y, palette.particle, 24);
         VFX.flashAt(this, DROP_ZONE_X, DROP_ZONE_Y, DROP_ZONE_W, DROP_ZONE_H, palette.particle, 0.4);
         VFX.dropZoneAccept(this, DROP_ZONE_X, DROP_ZONE_Y, DROP_ZONE_W, DROP_ZONE_H);
@@ -409,7 +502,16 @@ export class Game extends Scene {
         });
 
         this.processing[freeSlot] = createProcessingSlot(this, 130, destY, card);
+        if (card.id === 'boost') this.boostProcessingSlots(8);
         this.time.delayedCall(350, () => this.dealHand());
+    }
+
+    private boostProcessingSlots(seconds: number) {
+        for (const slot of this.processing) {
+            if (!slot || slot.card.id === 'boost') continue;
+            slot.elapsed = Math.min(slot.elapsed + seconds, slot.card.duration - 0.05);
+        }
+        VFX.floatText(this, 130, 200, `⚡ -${seconds}s ALL CARDS`, '#ffaa44');
     }
 
     private finishCard(slot: ProcessingSlot, index: number) {
@@ -420,6 +522,7 @@ export class Game extends Scene {
 
         this.addHeat(card.heat);
         this.points += card.points;
+        this.refreshStarCount();
 
         // Add to the correct resource
         if (card.resource && card.resourceAmount > 0) {
@@ -442,10 +545,11 @@ export class Game extends Scene {
 
         // Monitor card reveals stats
         if (card.id === 'monitor') {
-            const tier     = getCardTier('monitor');
-            const duration = [8, 12, 18][tier] ?? 8;
+            const duration = [8, 12, 18][tierForLevel(this.levelIndex)] ?? 8;
             this.activateMonitor(duration);
         }
+
+        this.checkCombo(card);
 
         this.tweens.add({
             targets: slot.container,
@@ -467,22 +571,7 @@ export class Game extends Scene {
         Object.values(this.resBarLabels).forEach(l => l.setAlpha(1));
 
         // Next-card preview
-        const nextCard = this.deck.length > 0
-            ? getCardAtTier(this.deck[this.deck.length - 1].id, getCardTier(this.deck[this.deck.length - 1].id))
-            : null;
-
-        if (this.nextCardPreview) { this.nextCardPreview.destroy(); this.nextCardPreview = null; }
-
-        if (nextCard) {
-            const px = DROP_ZONE_X + DROP_ZONE_W / 2 + 80;
-            const py = DROP_ZONE_Y - 70;
-            const bg  = this.add.rectangle(0, 0, 130, 44, 0x000000, 0.85).setStrokeStyle(2, 0x44ff88);
-            const lbl = this.add.text(0, -14, 'NEXT DRAW', { fontSize: '9px', color: '#44ff88', fontStyle: 'bold' }).setOrigin(0.5);
-            const img = this.add.image(0, 8, nextCard.imageKey).setDisplaySize(28, 28);
-            const nm  = this.add.text(16, 6, nextCard.name, { fontSize: '10px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0, 0.5);
-            this.nextCardPreview = this.add.container(px, py, [bg, lbl, img, nm]).setDepth(20).setAlpha(0);
-            this.tweens.add({ targets: this.nextCardPreview, alpha: 1, duration: 300 });
-        }
+        this.refreshNextCardPreview();
 
         // Scan flash
         VFX.flashAt(this, 512, 384, 1024, 768, 0x44ff88, 0.2);
@@ -565,13 +654,15 @@ export class Game extends Scene {
     }
 
     private evaluateResult() {
-        if (this.gameEnded) return;
-        this.gameEnded = true;
+        if (this.evaluatingResult || this.gameEnded) return;
+        this.evaluatingResult = true;
 
         // If a ship launch is still animating, wait for it to finish first
         if (this.shipLaunchInProgress) {
-            this.time.delayedCall(2000, () => this.evaluateResult());
-            this.gameEnded = false;
+            this.time.delayedCall(2000, () => {
+                this.evaluatingResult = false;
+                this.evaluateResult();
+            });
             return;
         }
 
@@ -590,7 +681,10 @@ export class Game extends Scene {
         this.shipLaunchInProgress = true;
 
         this.spaceshipsBuilt++;
-        this.shipCountTxt.setText(`🚀 ×${this.spaceshipsBuilt}`);
+        const shipColor = this.spaceshipsBuilt >= 3 ? '#ffcc00'
+                        : this.spaceshipsBuilt >= 2 ? '#88ffcc'
+                        : '#aaffee';
+        this.shipCountTxt.setText(`${this.spaceshipsBuilt} / 3`).setColor(shipColor);
 
         VFX.flashAt(this, 512, 384, 1024, 768, 0x22cc88, 0.5);
         VFX.screenShake(this, 0.006, 350);
@@ -600,7 +694,7 @@ export class Game extends Scene {
         VFX.floatText(this, DROP_ZONE_X, DROP_ZONE_Y - 140,
             `🚀 SPACESHIP #${this.spaceshipsBuilt} LAUNCHED!`, '#22ffaa');
 
-        const ship = this.add.image(DROP_ZONE_X, DROP_ZONE_Y + 40, 'spaceship_win')
+        const ship = this.add.image(DROP_ZONE_X, DROP_ZONE_Y + 40, this.shipKeyForLevel())
             .setDisplaySize(90, 90).setDepth(40).setAlpha(0);
 
         const exhaust = this.add.particles(DROP_ZONE_X, DROP_ZONE_Y + 80, 'vfx_dot', {
@@ -644,7 +738,129 @@ export class Game extends Scene {
         });
     }
 
+    private checkCombo(finished: Card) {
+        const activeSlots = this.processing.filter((s): s is ProcessingSlot => s !== null);
+        const activeIds   = activeSlots.map(s => s.card.id);
+        const hotIds      = ['fuel', 'boost', 'titanium'];
+
+        // ── Boost combos (fire whichever card finishes first) ─────────────
+        if (finished.id === 'boost') {
+            for (const slot of activeSlots) {
+                if (slot.card.resource && ['electricity', 'fuel', 'titanium'].includes(slot.card.id)) {
+                    this.addResource(slot.card.resource, slot.card.resourceAmount);
+                    const color = slot.card.id === 'electricity' ? 0xaa44ff
+                                : slot.card.id === 'fuel'        ? 0xff8800
+                                : 0x88aacc;
+                    this.showComboBanner(`BOOST COMBO!  +${slot.card.id.toUpperCase()}`, color);
+                }
+            }
+        }
+        if (finished.id === 'electricity' && activeIds.includes('boost')) {
+            this.addResource('electricity', finished.resourceAmount);
+            this.showComboBanner('BOOST COMBO!  +ELECTRICITY', 0xaa44ff);
+        }
+        if (finished.id === 'fuel' && activeIds.includes('boost')) {
+            this.addResource('fuel', finished.resourceAmount);
+            this.showComboBanner('BOOST COMBO!  +FUEL', 0xff8800);
+        }
+        if (finished.id === 'titanium' && activeIds.includes('boost')) {
+            this.addResource('titanium', finished.resourceAmount);
+            this.showComboBanner('BOOST COMBO!  +TITANIUM', 0x88aacc);
+        }
+
+        // ── Solar combo ───────────────────────────────────────────────────
+        if (finished.id === 'electricity' && activeIds.includes('solar')) {
+            this.addResource('electricity', 3);
+            this.showComboBanner('SOLAR COMBO!  +3 ELECTRICITY', 0xffee44);
+        }
+        if (finished.id === 'solar' && activeIds.includes('electricity')) {
+            this.addResource('electricity', 3);
+            this.showComboBanner('SOLAR COMBO!  +3 ELECTRICITY', 0xffee44);
+        }
+
+        // ── Cryo combo ────────────────────────────────────────────────────
+        if (finished.id === 'cool' && activeIds.some(id => hotIds.includes(id))) {
+            this.addHeat(-8);
+            this.showComboBanner('CRYO COMBO!  -8 HEAT', 0x00ccff);
+        }
+        if (hotIds.includes(finished.id) && activeIds.includes('cool')) {
+            this.addHeat(-8);
+            this.showComboBanner('CRYO COMBO!  -8 HEAT', 0x00ccff);
+        }
+    }
+
+    private showComboBanner(message: string, color: number) {
+        this.timeRemaining += 3;
+        VFX.floatText(this, 512, 55, '+3s', '#44ffaa');
+
+        const hex = '#' + color.toString(16).padStart(6, '0');
+        const banner = this.add.text(512, 80, message, {
+            fontSize: '22px',
+            color: hex,
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 5,
+            align: 'center',
+        }).setOrigin(0.5).setDepth(50).setAlpha(0);
+
+        this.tweens.add({
+            targets: banner,
+            alpha: { from: 0, to: 1 },
+            y: { from: 95, to: 75 },
+            duration: 250,
+            ease: 'Back.Out',
+            onComplete: () => {
+                this.time.delayedCall(900, () => {
+                    this.tweens.add({
+                        targets: banner,
+                        alpha: 0,
+                        y: 55,
+                        duration: 400,
+                        ease: 'Quad.In',
+                        onComplete: () => banner.destroy(),
+                    });
+                });
+            },
+        });
+
+        VFX.screenShake(this, 0.003, 200);
+    }
+
+    private shipKeyForLevel(): string {
+        const i = this.levelIndex;
+        if (i === 0) return 'spaceship_1';
+        if (i === 1) return 'spaceship_2';
+        if (i === 2) return 'spaceship_3';
+        if (i === 3) return 'spaceship_4';
+        if (i <= 5) return 'spaceship_56';
+        if (i <= 8) return 'spaceship_89';
+        return 'spaceship_10';
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private refreshStarCount() {
+        if (!this.unlockBtnFill) return;
+        const ratio = Math.min(this.points / POWER_UNLOCK_COST, 1);
+        const ready = ratio >= 1 && !this.powerUnlocked;
+
+        this.unlockBtnFill.height = 56 * ratio;
+        this.unlockBtnIcon.setAlpha(0.15 + 0.85 * ratio);
+        this.unlockBtnBg.setStrokeStyle(2, ready ? 0xcc88ff : 0x441166);
+
+        if (ready && !this.unlockPulseTween) {
+            this.unlockBtnBg.setInteractive({ useHandCursor: true });
+            this.unlockPulseTween = this.tweens.add({
+                targets: this.unlockBtnIcon,
+                alpha: { from: 0.7, to: 1 },
+                yoyo: true, repeat: -1, duration: 500, ease: 'Sine.InOut',
+            });
+        } else if (!ready) {
+            this.unlockBtnBg.disableInteractive();
+            this.unlockPulseTween?.stop();
+            this.unlockPulseTween = null;
+        }
+    }
 
     private showFullMessage() {
         const txt = this.add.text(
@@ -659,50 +875,59 @@ export class Game extends Scene {
     }
 
     private buildUnlockButton(): Phaser.GameObjects.Container {
-        const btnX = DROP_ZONE_X;
-        const btnY = DROP_ZONE_Y + DROP_ZONE_H / 2 + 44;
-        const bg   = this.add.rectangle(0, 0, 230, 42, 0x1a0a2e, 1).setStrokeStyle(2, 0xaa44ff);
-        const label = this.add.text(0, 0, `POWER UNLOCK  (${POWER_UNLOCK_COST} ⭐)`, {
-            fontSize: '13px', color: '#cc88ff', fontStyle: 'bold', align: 'center',
-        }).setOrigin(0.5);
-        const container = this.add.container(btnX, btnY, [bg, label]).setDepth(10);
-        this.tweens.add({ targets: bg, alpha: { from: 0.7, to: 1 }, yoyo: true, repeat: -1, duration: 800, ease: 'Sine.InOut' });
-        bg.setInteractive({ useHandCursor: true })
-            .on('pointerover', () => { bg.setStrokeStyle(2, 0xffffff); label.setColor('#ffffff'); })
-            .on('pointerout',  () => { bg.setStrokeStyle(2, 0xaa44ff); label.setColor('#cc88ff'); })
+        const BTN_X  = 130;
+        const BTN_Y  = 430;
+        const SIZE   = 60;
+
+        this.unlockBtnBg = this.add.rectangle(0, 0, SIZE, SIZE, 0x0d0020)
+            .setStrokeStyle(2, 0x441166);
+        this.unlockBtnFill = this.add.rectangle(0, SIZE / 2 - 2, SIZE - 6, 0, 0xaa44ff)
+            .setOrigin(0.5, 1);
+        this.unlockBtnIcon = this.add.text(0, 0, '⚡', { fontSize: '28px' })
+            .setOrigin(0.5).setAlpha(0.15);
+
+        this.unlockBtnBg
+            .on('pointerover', () => {
+                if (this.points >= POWER_UNLOCK_COST && !this.powerUnlocked)
+                    this.unlockBtnBg.setStrokeStyle(2, 0xffffff);
+            })
+            .on('pointerout', () => {
+                if (this.points >= POWER_UNLOCK_COST && !this.powerUnlocked)
+                    this.unlockBtnBg.setStrokeStyle(2, 0xcc88ff);
+            })
             .on('pointerdown', () => this.unlockPower());
-        return container;
+
+        return this.add.container(BTN_X, BTN_Y, [
+            this.unlockBtnBg, this.unlockBtnFill, this.unlockBtnIcon,
+        ]).setDepth(10);
     }
 
     private unlockPower() {
-        if (this.powerUnlocked) return;
-        if (this.points < POWER_UNLOCK_COST) {
-            this.tweens.add({
-                targets: this.unlockBtn, x: this.unlockBtn.x + 8,
-                yoyo: true, repeat: 4, duration: 5, ease: 'Linear',
-                onComplete: () => { this.unlockBtn.x = DROP_ZONE_X; },
-            });
-            VFX.floatText(this, DROP_ZONE_X, DROP_ZONE_Y + DROP_ZONE_H / 2 + 20, `Need ${POWER_UNLOCK_COST} ⭐`, '#ff6644');
-            return;
-        }
+        if (this.powerUnlocked || this.points < POWER_UNLOCK_COST) return;
+
+        const bx = this.unlockBtn.x;
+        const by = this.unlockBtn.y;
+
         this.points -= POWER_UNLOCK_COST;
         this.powerUnlocked = true;
         this.maxProcSlots  = MAX_PROC_SLOTS;
-        VFX.burst(this, DROP_ZONE_X, DROP_ZONE_Y + DROP_ZONE_H / 2 + 44, 0xaa44ff, 30);
-        VFX.screenShake(this, 0.005, 250);
-        VFX.floatText(this, DROP_ZONE_X, DROP_ZONE_Y + DROP_ZONE_H / 2 + 20, '⚡ POWER UNLOCKED!', '#cc88ff');
+
+        this.unlockPulseTween?.stop();
+        this.unlockPulseTween = null;
+        this.refreshStarCount();
         this.unlockBtn.setVisible(false);
 
+        VFX.burst(this, bx, by, 0xaa44ff, 30);
+        VFX.screenShake(this, 0.005, 250);
+        VFX.floatText(this, bx, by - 44, '⚡ POWER UNLOCKED!', '#cc88ff');
+
         const POWER_DURATION = 5;
-        const badgeY = DROP_ZONE_Y + DROP_ZONE_H / 2 + 44;
-        const badge = this.add.text(DROP_ZONE_X, badgeY,
-            `⚡ POWER ACTIVE  (${POWER_DURATION}s)`, {
-            fontSize: '13px', color: '#ffcc00', fontStyle: 'bold', align: 'center',
+        const badge = this.add.text(bx, by, `⚡ POWER ACTIVE  (${POWER_DURATION}s)`, {
+            fontSize: '12px', color: '#ffcc00', fontStyle: 'bold', align: 'center',
             stroke: '#000000', strokeThickness: 3,
         }).setOrigin(0.5).setDepth(10);
         this.tweens.add({ targets: badge, alpha: { from: 0.6, to: 1 }, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
 
-        // Countdown and revert after POWER_DURATION seconds
         let remaining = POWER_DURATION;
         const tick = this.time.addEvent({
             delay: 1000,
@@ -716,9 +941,9 @@ export class Game extends Scene {
                     tick.remove();
                     this.maxProcSlots  = 1;
                     this.powerUnlocked = false;
-                    // Re-show the button so the player can use it again
                     this.unlockBtn.setVisible(true);
-                    VFX.floatText(this, DROP_ZONE_X, badgeY, '⚡ POWER ENDED', '#aa44ff');
+                    this.refreshStarCount();
+                    VFX.floatText(this, bx, by, '⚡ POWER ENDED', '#aa44ff');
                 }
             },
         });
@@ -757,9 +982,9 @@ export class Game extends Scene {
         this.activeEvent      = evt;
         this.eventTimeLeft    = evt.duration;
 
-        if (evt.key === 'solar_flare')   this.heatMultiplier   = 2;
+        if (evt.key === 'solar_flare')   this.heatMultiplier   = 1.25;
         if (evt.key === 'system_glitch') this.processingPaused = true;
-        if (evt.key === 'meteor_shower') this.addHeat(25);
+        if (evt.key === 'meteor_shower') this.addHeat(10);
 
         this.showEventBanner(evt);
         VFX.flashAt(this, 512, 384, 1024, 768, evt.color, 0.35);
@@ -798,8 +1023,10 @@ export class Game extends Scene {
 
     private endGame(won: boolean, stars: number, reason: 'overheat' | 'timeout' = 'overheat') {
         if (this.gameEnded) return;
-        this.gameEnded = true;
-        this.sound.get('bg_music')?.stop();
+        this.gameEnded    = true;
+        this.maxProcSlots = 1;
+        this.powerUnlocked = false;
+        stopMusic(this);
         VFX.flashAt(this, 512, 384, 1024, 768, won ? 0x22cc88 : 0xff2200, 0.8);
         VFX.screenShake(this, 0.01, 400);
         this.time.delayedCall(500, () => {

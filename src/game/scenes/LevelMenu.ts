@@ -55,7 +55,7 @@ export class LevelMenu extends Scene {
                 let starStr = '';
                 for (let s = 1; s <= 3; s++) starStr += s <= best ? '★' : '☆';
                 this.add.text(x, y + 20, starStr, {
-                    fontSize: '16px',
+                    fontSize: '32px',
                     color: '#ffcc00',
                 }).setOrigin(0.5);
 
@@ -66,29 +66,11 @@ export class LevelMenu extends Scene {
                     .setScale(0.05)
                     .setTint(0x444444);
 
-                this.add.text(x, y - 6, '🔒', {
-                    fontSize: '22px',
-                }).setOrigin(0.5);
-
-                this.add.text(x, y + 20, String(i), {
-                    fontSize: '14px',
-                    color: '#666666',
+                this.add.text(x, y, '🔒', {
+                    fontSize: '30px',
                 }).setOrigin(0.5);
             }
         }
 
-        // ── Upgrade Cards button (bottom-centre) ──────────────────────────
-        const upgBtn = this.add.image(512, 660, 'blue_button')
-            .setScale(0.1).setInteractive({ useHandCursor: true });
-        this.add.text(512, 660, '⚡ Upgrade Cards', {
-            fontFamily: 'Arial Black',
-            fontSize: '24px',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 5,
-        }).setOrigin(0.5);
-        upgBtn.on('pointerdown', () => this.scene.start('CardUpgrade'));
-        upgBtn.on('pointerover', () => { upgBtn.setTint(0xaaaaaa); playHover(this); });
-        upgBtn.on('pointerout',  () => upgBtn.clearTint());
     }
 }

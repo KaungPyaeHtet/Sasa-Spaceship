@@ -1,3 +1,8 @@
+@font-face {
+    font-family: "Supercharge";
+    src: url("/assets/fonts/supercharge.otf") format("opentype");
+}
+
 body {
     margin: 0;
     padding: 0;
