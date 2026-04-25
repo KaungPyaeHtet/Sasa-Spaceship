@@ -48,16 +48,19 @@ export class MainMenu extends Scene
         
         this.add.image(512, 200, 'logo').setOrigin(0.5).setScale(0.15);
 
-        this.playTitle = this.makeClickableText(512, 380, 'Play', () => {
+        this.playTitle = this.makeClickableText(512, 360, 'Play', () => {
             this.scene.start('LevelMenu');
         });
-        this.settingTitle = this.makeClickableText(512, 480, "Setting", () => {
+        this.settingTitle = this.makeClickableText(512, 450, "Setting", () => {
             this.scene.start("Setting");
         });
-        this.tutorialTitle = this.makeClickableText(512, 580, "Tutorial", () => {
+        this.tutorialTitle = this.makeClickableText(512, 540, "Tutorial", () => {
             this.scene.start("Tutorial");
         });
-        this.makeClickableText(512, 680, "Credits", () => {
+        this.makeClickableText(512, 630, "Cards", () => {
+            this.scene.start("CardInfo");
+        });
+        this.makeClickableText(512, 720, "Credits", () => {
             this.scene.start("Credits");
         });
 

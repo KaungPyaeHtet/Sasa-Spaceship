@@ -2,6 +2,7 @@ import { Scene } from "phaser";
 import { createBackButton } from "../ui/BackButton";
 import { playHover } from "../ui/sounds";
 import { isLevelUnlocked, getBestStars } from "../data/progress";
+import { playMusic } from "../audio/AudioManager";
 
 export class LevelMenu extends Scene {
     constructor() {
@@ -9,6 +10,7 @@ export class LevelMenu extends Scene {
     }
 
     create() {
+        playMusic(this);
         this.add.image(512, 384, "background");
         createBackButton(this, "MainMenu");
 

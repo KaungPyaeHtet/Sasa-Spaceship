@@ -40,7 +40,7 @@ export class PauseMenu extends Scene {
         this.add.rectangle(CX, 384, 1024, 768, 0x000000, 0.6);
 
         // Panel
-        this.add.rectangle(CX, 384, 480, 580, 0x0d1b2a, 0.96)
+        this.add.rectangle(CX, 384, 800, 640, 0x0d1b2a, 0.96)
             .setStrokeStyle(2, 0x22cc88);
 
         this.add.text(CX, 120, 'PAUSED', STYLE_TITLE).setOrigin(0.5);

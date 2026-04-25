@@ -1,6 +1,6 @@
 @font-face {
     font-family: "Supercharge";
-    src: url("/assets/fonts/supercharge.otf") format("opentype");
+    src: url("assets/fonts/supercharge.otf") format("opentype");
 }
 
 body {

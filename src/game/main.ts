@@ -10,6 +10,7 @@ import { LevelMenu } from './scenes/LevelMenu';
 import { Credits } from './scenes/Credits';
 import { Story } from './scenes/Story';
 import { PauseMenu } from './scenes/PauseMenu';
+import { CardInfo } from './scenes/CardInfo';
 
 //  Find out more information about the Game Config at:
 //  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -36,6 +37,7 @@ const config: Phaser.Types.Core.GameConfig = {
         GameOver,
         Credits,
         PauseMenu,
+        CardInfo,
     ]
 };
 

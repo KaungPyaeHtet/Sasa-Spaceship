@@ -53,7 +53,7 @@ export function createDraggableCard(
     ).setOrigin(0.5, 0).setAlpha(0);
 
     // Description — hidden by default
-    const descTxt = scene.add.text(0, CARD_H / 4 + 30, card.description, {
+    const descTxt = scene.add.text(0, CARD_H / 4 + 10, card.description, {
         fontSize: '10px',
         color: '#cccccc',
         align: 'center',

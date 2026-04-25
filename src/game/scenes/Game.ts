@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { levels } from '../data/levels';
-import { cardDefinitions, Card, ResourceType } from '../data/cards';
-import { createBackButton } from '../ui/BackButton';
+import { cardDefinitions, Card } from '../data/cards';
+import { playHover } from '../ui/sounds';
 import {
     createDraggableCard,
     createProcessingSlot,
@@ -10,12 +10,15 @@ import {
 import { VFX, CARD_COLORS } from '../vfx/VFX';
 import { RANDOM_EVENTS, GameEvent } from '../data/randomEvents';
 import { getCardAtTier, tierForLevel } from '../data/cardUpgrades';
-import { playCardSFX, resumeAudioContext } from '../ui/CardSFX';
-import { stopMusic, playSFX, AUDIO } from '../audio/AudioManager';
+import { playCardSFX } from '../ui/CardSFX';
+import { stopMusic, playGameMusic, playSFX, playVoiceline, playPixelCrunch, AUDIO } from '../audio/AudioManager';
+import { buildHeatBar, buildResourceBars, HeatBarRefs, ResBarRefs } from '../ui/HUDBars';
+import { buildComboPanel } from '../ui/ComboPanel';
+import { showEventBanner } from '../ui/EventBanner';
 
-const HAND_SIZE         = 3;
+const HAND_SIZE         = 4;
 const MAX_PROC_SLOTS    = 3;
-const POWER_UNLOCK_COST = 20;
+const POWER_UNLOCK_COST = 10;
 const DROP_ZONE_X       = 512;
 const DROP_ZONE_Y       = 360;
 const DROP_ZONE_W       = 240;
@@ -25,11 +28,6 @@ const RES_ICON: Record<string, string> = {
     electricity: '⚡',
     fuel:        '◉',
     titanium:    '◆',
-};
-const RES_COLOR: Record<string, number> = {
-    electricity: 0xffff44,
-    fuel:        0xff8800,
-    titanium:    0x88aacc,
 };
 
 export class Game extends Scene {
@@ -41,10 +39,8 @@ export class Game extends Scene {
     private resources: Record<string, number>;
 
     // ── HUD bars ─────────────────────────────────────────────────────────
-    private heatBarFill:  Phaser.GameObjects.Rectangle;
-    private heatBarLabel: Phaser.GameObjects.Text;
-    private resBarFills:  Record<string, Phaser.GameObjects.Rectangle>  = {};
-    private resBarLabels: Record<string, Phaser.GameObjects.Text>       = {};
+    private heatBar!:  HeatBarRefs;
+    private resBars!:  ResBarRefs;
 
     // ── Machine ───────────────────────────────────────────────────────────
     private machineImg:   Phaser.GameObjects.Sprite;
@@ -87,6 +83,12 @@ export class Game extends Scene {
     private eventTimeLeft:     number = 0;
     private heatMultiplier:    number = 1;   // solar flare doubles this
     private processingPaused:  boolean = false; // system glitch freezes slots
+    private powerOnCooldown:   boolean = false;
+    private heat42Played:      boolean = false;
+    private timeLowPlayed:     boolean = false;
+    private usedCombos:        Set<string> = new Set();
+    private boostActive:       boolean = false;
+    private boostTimeLeft:     number  = 0;
 
     constructor() { super('Game'); }
 
@@ -108,6 +110,12 @@ export class Game extends Scene {
         this.monitorTimeLeft  = 0;
         this.heatMultiplier   = 1;
         this.processingPaused = false;
+        this.powerOnCooldown  = false;
+        this.heat42Played     = false;
+        this.timeLowPlayed    = false;
+        this.usedCombos       = new Set();
+        this.boostActive      = false;
+        this.boostTimeLeft    = 0;
         this.nextCardPreview  = null;
         this.activeEvent      = null;
         this.eventTimeLeft    = 0;
@@ -118,14 +126,21 @@ export class Game extends Scene {
         this.add.image(512, 384, 'background');
         VFX.ambientParticles(this);
 
-        // Stop menu music when game starts
-        stopMusic(this);
+        // Stop lobby music and start in-game music
+        playGameMusic(this, this.levelIndex);
 
-        createBackButton(this, 'LevelMenu');
+        // Back button with exit confirmation
+        const backBtn = this.add.image(100, 64, 'back_button')
+            .setDisplaySize(140, 60).setDepth(20)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', () => { backBtn.setAlpha(0.75); playHover(this); })
+            .on('pointerout',  () => backBtn.setAlpha(1))
+            .on('pointerdown', () => this.showExitConfirm());
+
 
         // Settings icon (top-right)
-        const settingBtn = this.add.image(990, 32, 'setting_button')
-            .setDisplaySize(42, 42)
+        const settingBtn = this.add.image(990, 720, 'setting_button')
+            .setDisplaySize(50, 50)
             .setDepth(20)
             .setInteractive({ useHandCursor: true })
             .on('pointerover', () => settingBtn.setAlpha(0.75))
@@ -152,10 +167,11 @@ export class Game extends Scene {
         }).setOrigin(0, 0.5).setDepth(10);
 
         // ── Machine image in drop zone ────────────────────────────────────
-        this.machineImg = this.add.sprite(DROP_ZONE_X, DROP_ZONE_Y, 'machine1')
+        const machineFirstFrame = this.levelIndex >= 5 ? 'machine_l5_1' : 'machine1';
+        this.machineImg = this.add.sprite(DROP_ZONE_X, DROP_ZONE_Y, machineFirstFrame)
             .setDisplaySize(DROP_ZONE_W, DROP_ZONE_H)
             .setDepth(1);
-        this.machineImg.play('machine_run');
+        this.machineImg.play(this.levelIndex >= 5 ? 'machine_run_l5' : 'machine_run');
 
         // Drop zone pulse ring + invisible hit zone on top
         this.dropZonePulse = VFX.setupDropZonePulse(this, DROP_ZONE_X, DROP_ZONE_Y, DROP_ZONE_W, DROP_ZONE_H);
@@ -163,11 +179,11 @@ export class Game extends Scene {
             .setRectangleDropZone(DROP_ZONE_W, DROP_ZONE_H);
 
         // ── HUD: heat bar (top-right) ─────────────────────────────────────
-        this.buildHeatBar();
+        this.heatBar = buildHeatBar(this);
 
         // ── HUD: resource bars (right side) ──────────────────────────────
-        this.buildResourceBars();
-        this.buildComboPanel();
+        this.resBars = buildResourceBars(this, this.levelData);
+        buildComboPanel(this);
 
         // ── Processing array ──────────────────────────────────────────────
         this.processing = Array(MAX_PROC_SLOTS).fill(null);
@@ -243,6 +259,10 @@ export class Game extends Scene {
         // Pulse + large text when ≤ 10 s
         const secs = Math.ceil(t);
         this.timerText.setText(`${secs}s`);
+        if (!this.timeLowPlayed && t <= 15) {
+            this.timeLowPlayed = true;
+            playVoiceline(this, AUDIO.VL_TIME_LOW);
+        }
         if (secs <= 10) {
             this.timerText.setColor('#ff4444');
             this.timerText.setScale(1 + Math.sin(Date.now() * 0.01) * 0.06);
@@ -260,6 +280,15 @@ export class Game extends Scene {
             if (this.monitorTimeLeft <= 0) this.deactivateMonitor();
         }
 
+        // ── Tick boost window ─────────────────────────────────────────────
+        if (this.boostActive) {
+            this.boostTimeLeft -= delta / 1000;
+            if (this.boostTimeLeft <= 0) {
+                this.boostActive = false;
+                VFX.floatText(this, 130, 180, '⚡ BOOST ENDED', '#ffaa44');
+            }
+        }
+
         // ── Tick active event ─────────────────────────────────────────────
         if (this.activeEvent) {
             this.eventTimeLeft -= delta / 1000;
@@ -273,136 +302,41 @@ export class Game extends Scene {
         // Heat accelerates as the reactor gets hotter AND as more resources are collected.
         // At 0 heat / 0 progress → 1× base rate.
         // At full heat + full progress → up to 2× base rate.
+        // Idle (no cards processing) → 0.4× rate.
         const heatRatio     = this.heat / this.levelData.maxHeat;
         const progressRatio = this.calcProgress();
         const dynamicMult   = 1 + heatRatio * 0.6 + progressRatio * 0.4;
-        this.addHeat(this.levelData.heatPerSecond * this.heatMultiplier * dynamicMult * (delta / 1000));
+        const activeSlots   = this.processing.filter(s => s !== null).length;
+        const idleMult      = activeSlots > 0 ? activeSlots : 0.4;
+        this.addHeat(this.levelData.heatPerSecond * this.heatMultiplier * dynamicMult * idleMult * (delta / 1000));
 
         if (!this.processingPaused) {
             for (let i = 0; i < MAX_PROC_SLOTS; i++) {
                 const slot = this.processing[i];
                 if (!slot) continue;
+                const prevElapsed = slot.elapsed;
                 slot.elapsed += delta / 1000;
                 const progress = Math.min(slot.elapsed / slot.card.duration, 1);
                 slot.barFill.width = 206 * (1 - progress);
+
+                // Gradually add resources as the card processes
+                if (slot.card.resource && slot.card.resourceAmount > 0) {
+                    const prevProgress = Math.min(prevElapsed / slot.card.duration, 1);
+                    const delta_progress = progress - prevProgress;
+                    if (delta_progress > 0) {
+                        const chunk = slot.card.resourceAmount * delta_progress;
+                        const needed = this.levelData[`${slot.card.resource}Needed` as keyof typeof this.levelData] as number;
+                        const BAR_W  = 180;
+                        this.resources[slot.card.resource] = Math.min(this.resources[slot.card.resource] + chunk, needed);
+                        const ratio  = this.resources[slot.card.resource] / needed;
+                        this.resBars.fills[slot.card.resource].width = BAR_W * ratio;
+                        this.resBars.labels[slot.card.resource].setText(`${Math.floor(this.resources[slot.card.resource])} / ${needed}`);
+                    }
+                }
+
                 if (progress >= 1) this.finishCard(slot, i);
             }
         }
-    }
-
-    // ── HUD builders ───────────────────────────────────────────────────────
-
-    private buildHeatBar() {
-        const BAR_W = 180;
-        const BAR_X = 1024 - BAR_W - 16;
-        const BAR_H = 20;
-        const y     = 44;
-
-        this.add.text(BAR_X, y - 32, '🔥 HEAT', { fontSize: '13px', color: '#ff6644', fontStyle: 'bold' }).setDepth(8);
-        this.add.rectangle(BAR_X + BAR_W / 2, y, BAR_W, BAR_H, 0x222222).setDepth(8);
-        this.heatBarFill = this.add.rectangle(BAR_X, y, 0, BAR_H, 0xff4400).setOrigin(0, 0.5).setDepth(9);
-        this.heatBarLabel = this.add.text(BAR_X + BAR_W / 2, y, '0', {
-            fontSize: '11px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
-        }).setOrigin(0.5).setDepth(10).setAlpha(0);
-    }
-
-    private buildComboPanel() {
-        const BAR_W  = 180;
-        const BAR_X  = 1024 - BAR_W - 16;
-        const panelY = 260;
-
-        const combos: { card1: string; card2: string; effect: string }[] = [
-            { card1: 'electricity_t1', card2: 'boost_t1',       effect: 'x2 electricity speed' },
-            { card1: 'fuel_t1',        card2: 'boost_t1',       effect: 'x2 fuel output'       },
-            { card1: 'electricity_t1', card2: 'solar_t1',       effect: '+3 bonus electricity'  },
-            { card1: 'cool_t1',        card2: 'fuel_t1',        effect: 'extra -8 heat'         },
-            { card1: 'titanium_t1',    card2: 'boost_t1',       effect: 'x2 titanium output'   },
-        ];
-
-        const ROW_H  = 44;
-        const CARD_W = 26;
-        const CARD_H = 37;
-        const panelH = 20 + combos.length * ROW_H + 6;
-
-        // ── Collapsible panel (hidden by default) ─────────────────────────
-        const panel = this.add.container(0, 0).setDepth(20).setAlpha(0).setVisible(false);
-
-        const bg = this.add.rectangle(BAR_X + BAR_W / 2, panelY + panelH / 2, BAR_W + 8, panelH, 0x0a1020, 0.95)
-            .setStrokeStyle(1, 0x334466);
-        panel.add(bg);
-
-        panel.add(this.add.text(BAR_X + BAR_W / 2, panelY + 6, 'COMBOS', {
-            fontSize: '11px', color: '#aaccff', fontStyle: 'bold', align: 'center',
-        }).setOrigin(0.5, 0));
-
-        combos.forEach((c, i) => {
-            const cy = panelY + 20 + i * ROW_H + ROW_H / 2;
-
-            // card 1
-            panel.add(this.add.image(BAR_X + 4 + CARD_W / 2, cy - 4, c.card1)
-                .setDisplaySize(CARD_W, CARD_H));
-            // "+"
-            panel.add(this.add.text(BAR_X + 4 + CARD_W + 4, cy - 4, '+', {
-                fontSize: '12px', color: '#aaaaaa',
-            }).setOrigin(0, 0.5));
-            // card 2
-            panel.add(this.add.image(BAR_X + 4 + CARD_W + 14 + CARD_W / 2, cy - 4, c.card2)
-                .setDisplaySize(CARD_W, CARD_H));
-            // effect
-            panel.add(this.add.text(BAR_X + 4 + CARD_W * 2 + 20, cy - 10, `→ ${c.effect}`, {
-                fontSize: '9px', color: '#88ccaa', wordWrap: { width: 80 },
-            }).setOrigin(0, 0));
-        });
-
-        // ── ? toggle button ───────────────────────────────────────────────
-        let open = false;
-        const btnX = BAR_X + BAR_W - 10;
-        const btnY = panelY - 14;
-
-        const btnBg = this.add.circle(btnX, btnY, 10, 0x223355).setDepth(21).setInteractive({ useHandCursor: true });
-        const btnTxt = this.add.text(btnX, btnY, '?', {
-            fontSize: '13px', color: '#aaccff', fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(22);
-
-        const toggle = () => {
-            open = !open;
-            panel.setVisible(open);
-            this.tweens.add({ targets: panel, alpha: open ? 1 : 0, duration: 150 });
-            btnBg.setFillStyle(open ? 0x334488 : 0x223355);
-            btnTxt.setColor(open ? '#ffffff' : '#aaccff');
-        };
-
-        btnBg.on('pointerdown', toggle)
-             .on('pointerover', () => btnBg.setFillStyle(0x334488))
-             .on('pointerout',  () => btnBg.setFillStyle(open ? 0x334488 : 0x223355));
-    }
-
-    private buildResourceBars() {
-        const BAR_W  = 180;
-        const BAR_X  = 1024 - BAR_W - 16;
-        const BAR_H  = 20;
-        const startY = 110;
-        const gap    = 56;
-
-        (['electricity', 'fuel', 'titanium'] as ResourceType[]).forEach((res, i) => {
-            if (!res) return;
-            const needed = this.levelData[`${res}Needed` as keyof typeof this.levelData] as number;
-            const y = startY + i * gap;
-            const color = RES_COLOR[res];
-
-            this.add.image(BAR_X + 10, y - 32, `${res}_t1`)
-                .setDisplaySize(20, 28).setDepth(8).setOrigin(0.5);
-            this.add.text(BAR_X + 24, y - 32, res.toUpperCase(), {
-                fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
-            }).setDepth(8).setOrigin(0, 0.5);
-            this.add.rectangle(BAR_X + BAR_W / 2, y, BAR_W, BAR_H, 0x222222).setDepth(8);
-
-            this.resBarFills[res] = this.add.rectangle(BAR_X, y, 0, BAR_H, color)
-                .setOrigin(0, 0.5).setDepth(9);
-            this.resBarLabels[res] = this.add.text(BAR_X + BAR_W / 2, y, `0 / ${needed}`, {
-                fontSize: '11px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
-            }).setOrigin(0.5).setDepth(10).setAlpha(0);
-        });
     }
 
     // ── Card logic ─────────────────────────────────────────────────────────
@@ -483,8 +417,9 @@ export class Game extends Scene {
             return;
         }
 
-        resumeAudioContext();
-        if (playCardSFX(card.id)) playSFX(this, AUDIO.CARD_COOL);
+        const cardSfxKey = playCardSFX(card.id);
+        if (cardSfxKey) playSFX(this, cardSfxKey as import('../audio/AudioManager').AudioKey);
+        playPixelCrunch(this);
         VFX.burst(this, DROP_ZONE_X, DROP_ZONE_Y, palette.particle, 24);
         VFX.flashAt(this, DROP_ZONE_X, DROP_ZONE_Y, DROP_ZONE_W, DROP_ZONE_H, palette.particle, 0.4);
         VFX.dropZoneAccept(this, DROP_ZONE_X, DROP_ZONE_Y, DROP_ZONE_W, DROP_ZONE_H);
@@ -502,16 +437,31 @@ export class Game extends Scene {
         });
 
         this.processing[freeSlot] = createProcessingSlot(this, 130, destY, card);
-        if (card.id === 'boost') this.boostProcessingSlots(8);
+        if (card.id === 'boost') this.activateBoost();
+        else if (this.boostActive) {
+            // Cut remaining processing time in half
+            const slot = this.processing[freeSlot];
+            if (slot) {
+                const remaining = slot.card.duration - slot.elapsed;
+                slot.card = { ...slot.card, duration: slot.elapsed + remaining * 0.5 };
+            }
+        }
         this.time.delayedCall(350, () => this.dealHand());
     }
 
-    private boostProcessingSlots(seconds: number) {
+    private activateBoost() {
+        const BOOST_DURATION = 5;
+        this.boostActive   = true;
+        this.boostTimeLeft = BOOST_DURATION;
+
+        // Cut remaining time in half for all active cards
         for (const slot of this.processing) {
             if (!slot || slot.card.id === 'boost') continue;
-            slot.elapsed = Math.min(slot.elapsed + seconds, slot.card.duration - 0.05);
+            const remaining = slot.card.duration - slot.elapsed;
+            slot.card = { ...slot.card, duration: slot.elapsed + remaining * 0.5 };
         }
-        VFX.floatText(this, 130, 200, `⚡ -${seconds}s ALL CARDS`, '#ffaa44');
+
+        VFX.floatText(this, 130, 200, `⚡ BOOST  ½ time (${BOOST_DURATION}s)`, '#ffaa44');
     }
 
     private finishCard(slot: ProcessingSlot, index: number) {
@@ -524,14 +474,15 @@ export class Game extends Scene {
         this.points += card.points;
         this.refreshStarCount();
 
-        // Add to the correct resource
+        // Resource was already drip-fed during processing — just show the float text and trigger win check
         if (card.resource && card.resourceAmount > 0) {
-            this.addResource(card.resource, card.resourceAmount);
             VFX.floatText(this, wx + 100, wy,
                 `${RES_ICON[card.resource]} +${card.resourceAmount}`,
                 card.resource === 'electricity' ? '#ffff66'
                     : card.resource === 'fuel'  ? '#ffaa44'
                     : '#aabbdd');
+            this.updateMachineStage();
+            this.checkWinCondition();
         }
         if (card.points > 0) VFX.floatText(this, wx + 100, wy + 28, `+${card.points} ⭐`, '#ffee66');
         if (card.heat !== 0) {
@@ -567,8 +518,8 @@ export class Game extends Scene {
         this.monitorTimeLeft = duration;
 
         // Show all labels
-        this.heatBarLabel.setAlpha(1);
-        Object.values(this.resBarLabels).forEach(l => l.setAlpha(1));
+        this.heatBar.label.setAlpha(1);
+        Object.values(this.resBars.labels).forEach(l => l.setAlpha(1));
 
         // Next-card preview
         this.refreshNextCardPreview();
@@ -582,8 +533,8 @@ export class Game extends Scene {
         this.monitorActive = false;
 
         // Fade out labels
-        this.tweens.add({ targets: this.heatBarLabel, alpha: 0, duration: 400 });
-        Object.values(this.resBarLabels).forEach(l =>
+        this.tweens.add({ targets: this.heatBar.label, alpha: 0, duration: 400 });
+        Object.values(this.resBars.labels).forEach(l =>
             this.tweens.add({ targets: l, alpha: 0, duration: 400 })
         );
 
@@ -604,13 +555,15 @@ export class Game extends Scene {
         // Update bar
         const BAR_W = 180;
         const ratio = this.resources[type] / needed;
-        this.resBarFills[type].width  = BAR_W * ratio;
-        this.resBarLabels[type].setText(`${Math.floor(this.resources[type])} / ${needed}`);
+        this.resBars.fills[type].width  = BAR_W * ratio;
+        this.resBars.labels[type].setText(`${Math.floor(this.resources[type])} / ${needed}`);
 
         // Advance machine stage
         this.updateMachineStage();
+        this.checkWinCondition();
+    }
 
-        // All resources full → launch a spaceship and reset for the next one
+    private checkWinCondition() {
         if (
             this.resources.electricity >= this.levelData.electricityNeeded &&
             this.resources.fuel        >= this.levelData.fuelNeeded &&
@@ -686,6 +639,7 @@ export class Game extends Scene {
                         : '#aaffee';
         this.shipCountTxt.setText(`${this.spaceshipsBuilt} / 3`).setColor(shipColor);
 
+        playSFX(this, AUDIO.LAUNCH);
         VFX.flashAt(this, 512, 384, 1024, 768, 0x22cc88, 0.5);
         VFX.screenShake(this, 0.006, 350);
         this.machineImg.stop();
@@ -694,21 +648,26 @@ export class Game extends Scene {
         VFX.floatText(this, DROP_ZONE_X, DROP_ZONE_Y - 140,
             `🚀 SPACESHIP #${this.spaceshipsBuilt} LAUNCHED!`, '#22ffaa');
 
-        const ship = this.add.image(DROP_ZONE_X, DROP_ZONE_Y + 40, this.shipKeyForLevel())
-            .setDisplaySize(90, 90).setDepth(40).setAlpha(0);
+        // Ship starts small (far away) and grows as it rises toward the camera, then shoots off
+        const ship = this.add.image(DROP_ZONE_X, DROP_ZONE_Y + 60, this.shipKeyForLevel())
+            .setDisplaySize(40, 40).setDepth(40).setAlpha(0);
 
         const exhaust = this.add.particles(DROP_ZONE_X, DROP_ZONE_Y + 80, 'vfx_dot', {
-            speedY: { min: 40, max: 120 }, speedX: { min: -20, max: 20 },
-            lifespan: { min: 300, max: 600 }, scale: { start: 0.5, end: 0 },
-            tint: [0xff8800, 0xffff00, 0xffffff], frequency: 25,
+            speedY: { min: 60, max: 160 }, speedX: { min: -30, max: 30 },
+            lifespan: { min: 400, max: 700 }, scale: { start: 0.8, end: 0 },
+            tint: [0xff8800, 0xffff44, 0xffffff], frequency: 18,
         }).setDepth(39);
 
+        // Phase 1: fade in and grow toward camera
         this.tweens.add({
-            targets: ship, alpha: 1, duration: 250,
+            targets: ship, alpha: 1, scaleX: 3.2, scaleY: 3.2,
+            y: DROP_ZONE_Y - 80,
+            duration: 900, ease: 'Quad.Out',
             onComplete: () => {
+                // Phase 2: blast upward and fade out
                 this.tweens.add({
-                    targets: ship, y: -140, scaleX: 0.25, scaleY: 0.25,
-                    duration: 1600, ease: 'Quad.In',
+                    targets: ship, y: -200, scaleX: 0.4, scaleY: 0.4, alpha: 0,
+                    duration: 900, ease: 'Quad.In',
                     onComplete: () => {
                         ship.destroy();
                         exhaust.destroy();
@@ -722,71 +681,101 @@ export class Game extends Scene {
                             titanium:    this.levelData.titaniumNeeded,
                         };
                         for (const res of ['electricity', 'fuel', 'titanium']) {
-                            this.resBarFills[res].width = 0;
-                            this.resBarLabels[res].setText(`0 / ${needs[res]}`);
+                            this.resBars.fills[res].width = 0;
+                            this.resBars.labels[res].setText(`0 / ${needs[res]}`);
                         }
                         void BAR_W;
 
-                        // Restart machine animation
-                        this.machineStage = 0;
-                        this.machineImg.play('machine_run');
-
                         this.shipLaunchInProgress = false;
+
+                        if (this.spaceshipsBuilt >= 3) {
+                            playVoiceline(this, AUDIO.VL_SAVE_HUMANITY);
+                            this.time.delayedCall(1200, () => this.endGame(true, 3, 'timeout'));
+                            return;
+                        }
+
+                        // Restart machine animation for next ship
+                        this.machineStage = 0;
+                        this.machineImg.play(this.levelIndex >= 5 ? 'machine_run_l5' : 'machine_run');
                     },
                 });
             },
         });
     }
 
+    private showExitConfirm() {
+        const group: Phaser.GameObjects.GameObject[] = [];
+        const add = <T extends Phaser.GameObjects.GameObject>(obj: T) => { group.push(obj); return obj; };
+
+        add(this.add.rectangle(512, 384, 1024, 768, 0x000000, 0.6).setDepth(50));
+        add(this.add.rectangle(512, 384, 440, 200, 0x111111, 1).setStrokeStyle(2, 0xffffff).setDepth(51));
+        add(this.add.text(512, 320, 'Progress will not be saved.\nAre you sure you want to exit?', {
+            fontSize: '20px', color: '#ffffff', align: 'center',
+            stroke: '#000000', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(52));
+
+        const close = () => group.forEach(o => o.destroy());
+
+        const makeBtn = (x: number, label: string, color: number, onClick: () => void) => {
+            const bg = add(this.add.rectangle(x, 410, 160, 48, color).setDepth(52).setInteractive({ useHandCursor: true }));
+            add(this.add.text(x, 410, label, {
+                fontSize: '20px', color: '#ffffff', fontFamily: 'Arial Black',
+                stroke: '#000000', strokeThickness: 4,
+            }).setOrigin(0.5).setDepth(53));
+            bg.on('pointerover', () => bg.setAlpha(0.75))
+              .on('pointerout',  () => bg.setAlpha(1))
+              .on('pointerdown', onClick);
+        };
+
+        makeBtn(420, 'Exit', 0xcc2222, () => { stopMusic(this); this.scene.start('LevelMenu'); });
+        makeBtn(604, 'Stay', 0x227722, () => close());
+    }
+
     private checkCombo(finished: Card) {
+        // Combos only trigger during active power mode
+        if (!this.powerUnlocked) return;
+
         const activeSlots = this.processing.filter((s): s is ProcessingSlot => s !== null);
         const activeIds   = activeSlots.map(s => s.card.id);
         const hotIds      = ['fuel', 'boost', 'titanium'];
 
-        // ── Boost combos (fire whichever card finishes first) ─────────────
+        const tryCombo = (key: string, fire: () => void) => {
+            if (this.usedCombos.has(key)) return;
+            this.usedCombos.add(key);
+            fire();
+        };
+
+        // ── Boost combos ──────────────────────────────────────────────────
         if (finished.id === 'boost') {
             for (const slot of activeSlots) {
-                if (slot.card.resource && ['electricity', 'fuel', 'titanium'].includes(slot.card.id)) {
-                    this.addResource(slot.card.resource, slot.card.resourceAmount);
-                    const color = slot.card.id === 'electricity' ? 0xaa44ff
-                                : slot.card.id === 'fuel'        ? 0xff8800
-                                : 0x88aacc;
-                    this.showComboBanner(`BOOST COMBO!  +${slot.card.id.toUpperCase()}`, color);
+                if (['electricity', 'fuel', 'titanium'].includes(slot.card.id)) {
+                    const res = slot.card.id;
+                    tryCombo(`boost:${res}`, () => {
+                        this.addResource(slot.card.resource!, slot.card.resourceAmount);
+                        const color = res === 'electricity' ? 0xaa44ff : res === 'fuel' ? 0xff8800 : 0x88aacc;
+                        this.showComboBanner(`BOOST COMBO!  +${res.toUpperCase()}`, color);
+                    });
                 }
             }
         }
-        if (finished.id === 'electricity' && activeIds.includes('boost')) {
-            this.addResource('electricity', finished.resourceAmount);
-            this.showComboBanner('BOOST COMBO!  +ELECTRICITY', 0xaa44ff);
-        }
-        if (finished.id === 'fuel' && activeIds.includes('boost')) {
-            this.addResource('fuel', finished.resourceAmount);
-            this.showComboBanner('BOOST COMBO!  +FUEL', 0xff8800);
-        }
-        if (finished.id === 'titanium' && activeIds.includes('boost')) {
-            this.addResource('titanium', finished.resourceAmount);
-            this.showComboBanner('BOOST COMBO!  +TITANIUM', 0x88aacc);
-        }
+        if (finished.id === 'electricity' && activeIds.includes('boost'))
+            tryCombo('boost:electricity', () => { this.addResource('electricity', finished.resourceAmount); this.showComboBanner('BOOST COMBO!  +ELECTRICITY', 0xaa44ff); });
+        if (finished.id === 'fuel' && activeIds.includes('boost'))
+            tryCombo('boost:fuel', () => { this.addResource('fuel', finished.resourceAmount); this.showComboBanner('BOOST COMBO!  +FUEL', 0xff8800); });
+        if (finished.id === 'titanium' && activeIds.includes('boost'))
+            tryCombo('boost:titanium', () => { this.addResource('titanium', finished.resourceAmount); this.showComboBanner('BOOST COMBO!  +TITANIUM', 0x88aacc); });
 
         // ── Solar combo ───────────────────────────────────────────────────
-        if (finished.id === 'electricity' && activeIds.includes('solar')) {
-            this.addResource('electricity', 3);
-            this.showComboBanner('SOLAR COMBO!  +3 ELECTRICITY', 0xffee44);
-        }
-        if (finished.id === 'solar' && activeIds.includes('electricity')) {
-            this.addResource('electricity', 3);
-            this.showComboBanner('SOLAR COMBO!  +3 ELECTRICITY', 0xffee44);
-        }
+        if (finished.id === 'electricity' && activeIds.includes('solar'))
+            tryCombo('solar:electricity', () => { this.addResource('electricity', 3); this.showComboBanner('SOLAR COMBO!  +3 ELECTRICITY', 0xffee44); });
+        if (finished.id === 'solar' && activeIds.includes('electricity'))
+            tryCombo('solar:electricity', () => { this.addResource('electricity', 3); this.showComboBanner('SOLAR COMBO!  +3 ELECTRICITY', 0xffee44); });
 
         // ── Cryo combo ────────────────────────────────────────────────────
-        if (finished.id === 'cool' && activeIds.some(id => hotIds.includes(id))) {
-            this.addHeat(-8);
-            this.showComboBanner('CRYO COMBO!  -8 HEAT', 0x00ccff);
-        }
-        if (hotIds.includes(finished.id) && activeIds.includes('cool')) {
-            this.addHeat(-8);
-            this.showComboBanner('CRYO COMBO!  -8 HEAT', 0x00ccff);
-        }
+        if (finished.id === 'cool' && activeIds.some(id => hotIds.includes(id)))
+            tryCombo('cryo:cool', () => { this.addHeat(-8); this.showComboBanner('CRYO COMBO!  -8 HEAT', 0x00ccff); });
+        if (hotIds.includes(finished.id) && activeIds.includes('cool'))
+            tryCombo('cryo:cool', () => { this.addHeat(-8); this.showComboBanner('CRYO COMBO!  -8 HEAT', 0x00ccff); });
     }
 
     private showComboBanner(message: string, color: number) {
@@ -842,10 +831,11 @@ export class Game extends Scene {
     private refreshStarCount() {
         if (!this.unlockBtnFill) return;
         const ratio = Math.min(this.points / POWER_UNLOCK_COST, 1);
-        const ready = ratio >= 1 && !this.powerUnlocked;
+        const ready = ratio >= 1 && !this.powerUnlocked && !this.powerOnCooldown;
 
-        this.unlockBtnFill.height = 56 * ratio;
-        this.unlockBtnIcon.setAlpha(0.15 + 0.85 * ratio);
+        this.unlockBtnFill.setSize(this.unlockBtnFill.width, Math.max(56 * ratio, 1));
+        this.unlockBtnFill.setAlpha(ratio > 0 && !this.powerOnCooldown ? 1 : 0);
+        this.unlockBtnIcon.setAlpha(this.powerOnCooldown ? 0.15 : 0.15 + 0.85 * ratio);
         this.unlockBtnBg.setStrokeStyle(2, ready ? 0xcc88ff : 0x441166);
 
         if (ready && !this.unlockPulseTween) {
@@ -866,7 +856,7 @@ export class Game extends Scene {
         const txt = this.add.text(
             DROP_ZONE_X, DROP_ZONE_Y - DROP_ZONE_H / 2 - 22,
             'Processing slot full!',
-            { fontSize: '14px', color: '#ff4444', fontStyle: 'bold' }
+            { fontSize: '20px', color: '#ff4444', fontStyle: 'bold' }
         ).setOrigin(0.5).setDepth(30);
         this.tweens.add({
             targets: txt, y: txt.y - 32, alpha: 0, duration: 1200,
@@ -876,13 +866,13 @@ export class Game extends Scene {
 
     private buildUnlockButton(): Phaser.GameObjects.Container {
         const BTN_X  = 130;
-        const BTN_Y  = 430;
+        const BTN_Y  = 680;
         const SIZE   = 60;
 
         this.unlockBtnBg = this.add.rectangle(0, 0, SIZE, SIZE, 0x0d0020)
             .setStrokeStyle(2, 0x441166);
-        this.unlockBtnFill = this.add.rectangle(0, SIZE / 2 - 2, SIZE - 6, 0, 0xaa44ff)
-            .setOrigin(0.5, 1);
+        this.unlockBtnFill = this.add.rectangle(0, SIZE / 2 - 2, SIZE - 6, 1, 0xaa44ff)
+            .setOrigin(0.5, 1).setAlpha(0);
         this.unlockBtnIcon = this.add.text(0, 0, '⚡', { fontSize: '28px' })
             .setOrigin(0.5).setAlpha(0.15);
 
@@ -903,12 +893,14 @@ export class Game extends Scene {
     }
 
     private unlockPower() {
-        if (this.powerUnlocked || this.points < POWER_UNLOCK_COST) return;
+        if (this.powerUnlocked || this.powerOnCooldown || this.points < POWER_UNLOCK_COST) return;
 
         const bx = this.unlockBtn.x;
         const by = this.unlockBtn.y;
 
-        this.points -= POWER_UNLOCK_COST;
+        // Reset points to 0 on use, clear combo history for this session
+        this.points        = 0;
+        this.usedCombos    = new Set();
         this.powerUnlocked = true;
         this.maxProcSlots  = MAX_PROC_SLOTS;
 
@@ -917,11 +909,14 @@ export class Game extends Scene {
         this.refreshStarCount();
         this.unlockBtn.setVisible(false);
 
+        playSFX(this, AUDIO.CARD_POWER);
         VFX.burst(this, bx, by, 0xaa44ff, 30);
         VFX.screenShake(this, 0.005, 250);
         VFX.floatText(this, bx, by - 44, '⚡ POWER UNLOCKED!', '#cc88ff');
 
-        const POWER_DURATION = 5;
+        const POWER_DURATION  = 5;
+        const COOLDOWN        = 8;
+
         const badge = this.add.text(bx, by, `⚡ POWER ACTIVE  (${POWER_DURATION}s)`, {
             fontSize: '12px', color: '#ffcc00', fontStyle: 'bold', align: 'center',
             stroke: '#000000', strokeThickness: 3,
@@ -929,7 +924,7 @@ export class Game extends Scene {
         this.tweens.add({ targets: badge, alpha: { from: 0.6, to: 1 }, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.InOut' });
 
         let remaining = POWER_DURATION;
-        const tick = this.time.addEvent({
+        const activeTick = this.time.addEvent({
             delay: 1000,
             repeat: POWER_DURATION - 1,
             callback: () => {
@@ -938,12 +933,38 @@ export class Game extends Scene {
                     badge.setText(`⚡ POWER ACTIVE  (${remaining}s)`);
                 } else {
                     badge.destroy();
-                    tick.remove();
+                    activeTick.remove();
                     this.maxProcSlots  = 1;
                     this.powerUnlocked = false;
+                    this.powerOnCooldown = true;
+                    this.usedCombos    = new Set();
                     this.unlockBtn.setVisible(true);
                     this.refreshStarCount();
                     VFX.floatText(this, bx, by, '⚡ POWER ENDED', '#aa44ff');
+
+                    // ── 8s cooldown ──────────────────────────────────────
+                    const cdBadge = this.add.text(bx, by + 38, `COOLDOWN  ${COOLDOWN}s`, {
+                        fontSize: '11px', color: '#886699', fontStyle: 'bold', align: 'center',
+                        stroke: '#000000', strokeThickness: 2,
+                    }).setOrigin(0.5).setDepth(10);
+
+                    let cd = COOLDOWN;
+                    const cdTick = this.time.addEvent({
+                        delay: 1000,
+                        repeat: COOLDOWN - 1,
+                        callback: () => {
+                            cd--;
+                            if (cd > 0) {
+                                cdBadge.setText(`COOLDOWN  ${cd}s`);
+                            } else {
+                                cdBadge.destroy();
+                                cdTick.remove();
+                                this.powerOnCooldown = false;
+                                this.refreshStarCount();
+                                VFX.floatText(this, bx, by, '⚡ READY', '#cc88ff');
+                            }
+                        },
+                    });
                 }
             },
         });
@@ -953,11 +974,16 @@ export class Game extends Scene {
         this.heat = Math.min(Math.max(this.heat + amount, 0), this.levelData.maxHeat);
         const ratio = this.heat / this.levelData.maxHeat;
         const BAR_W = 180;
-        this.heatBarFill.width = BAR_W * ratio;
-        const r = ratio < 0.5 ? Math.floor(ratio * 2 * 255) : 255;
-        const g = ratio < 0.5 ? 200 : Math.floor((1 - ratio) * 2 * 200);
-        this.heatBarFill.setFillStyle((r << 16) | (g << 8));
-        this.heatBarLabel.setText(`${Math.floor(this.heat)} / ${this.levelData.maxHeat}`);
+        this.heatBar.fill.width = BAR_W * ratio;
+        const g = Math.floor((1 - ratio) * 80);
+        this.heatBar.fill.setFillStyle((0xff << 16) | (g << 8));
+        this.heatBar.label.setText(`${Math.floor(this.heat)} / ${this.levelData.maxHeat}`);
+
+        if (!this.heat42Played && ratio >= 0.42) {
+            this.heat42Played = true;
+            playVoiceline(this, AUDIO.VL_HEAT_LEVEL_42);
+        }
+
         if (this.heat >= this.levelData.maxHeat) this.endGame(false, 0);
     }
 
@@ -965,11 +991,11 @@ export class Game extends Scene {
 
     private scheduleNextEvent() {
         if (this.gameEnded) return;
-        // Fire an event every 12–20 s
         const delay = 12000 + Math.random() * 8000;
         this.time.delayedCall(delay, () => {
             if (this.gameEnded) return;
-            // Pick an event valid for this level
+            // Skip if an event is already active — wait for next schedule
+            if (this.activeEvent) { this.scheduleNextEvent(); return; }
             const eligible = RANDOM_EVENTS.filter(e => e.minLevel <= this.levelIndex);
             if (eligible.length === 0) { this.scheduleNextEvent(); return; }
             const evt = eligible[Math.floor(Math.random() * eligible.length)];
@@ -979,46 +1005,20 @@ export class Game extends Scene {
     }
 
     private triggerEvent(evt: GameEvent) {
+        // Always reset any lingering effects before applying new ones
+        this.heatMultiplier   = 1;
+        this.processingPaused = false;
+
         this.activeEvent      = evt;
         this.eventTimeLeft    = evt.duration;
 
-        if (evt.key === 'solar_flare')   this.heatMultiplier   = 1.25;
-        if (evt.key === 'system_glitch') this.processingPaused = true;
-        if (evt.key === 'meteor_shower') this.addHeat(10);
+        if (evt.key === 'solar_flare')   { this.heatMultiplier   = 1.25; playVoiceline(this, AUDIO.VL_SOLAR_FLARE); }
+        if (evt.key === 'system_glitch') { this.processingPaused = true;  playVoiceline(this, AUDIO.VL_SYSTEM_GLITCH); }
+        if (evt.key === 'meteor_shower') { this.addHeat(5);              playVoiceline(this, AUDIO.VL_METEORITE); }
 
-        this.showEventBanner(evt);
+        showEventBanner(this, evt);
         VFX.flashAt(this, 512, 384, 1024, 768, evt.color, 0.35);
         VFX.screenShake(this, 0.006, 400);
-    }
-
-    private showEventBanner(evt: GameEvent) {
-        // Dark pill banner sliding in from top
-        const banner = this.add.container(512, -60).setDepth(50);
-        const bg = this.add.rectangle(0, 0, 420, 52, 0x000000, 0.85)
-            .setStrokeStyle(2, evt.color);
-        const title = this.add.text(0, -9,
-            `${evt.icon}  ${evt.name.toUpperCase()}`,
-            { fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
-              stroke: '#000000', strokeThickness: 3, align: 'center' }
-        ).setOrigin(0.5);
-        const sub = this.add.text(0, 12,
-            evt.desc,
-            { fontSize: '11px', color: '#cccccc', align: 'center' }
-        ).setOrigin(0.5);
-        banner.add([bg, title, sub]);
-
-        // Slide in, hold, slide out
-        this.tweens.add({
-            targets: banner, y: 50, duration: 350, ease: 'Back.Out',
-            onComplete: () => {
-                this.time.delayedCall(evt.duration * 1000 - 400, () => {
-                    this.tweens.add({
-                        targets: banner, y: -80, duration: 300, ease: 'Quad.In',
-                        onComplete: () => banner.destroy(),
-                    });
-                });
-            },
-        });
     }
 
     private endGame(won: boolean, stars: number, reason: 'overheat' | 'timeout' = 'overheat') {
@@ -1027,6 +1027,13 @@ export class Game extends Scene {
         this.maxProcSlots = 1;
         this.powerUnlocked = false;
         stopMusic(this);
+
+        // ── Voiceovers on game end ────────────────────────────────────────
+        if (!won && reason === 'overheat') {
+            playVoiceline(this, AUDIO.VL_OVERHEAT);
+        }
+        // Win voiceover (VL_SAVE_HUMANITY) is played in launchSpaceship before endGame is called
+
         VFX.flashAt(this, 512, 384, 1024, 768, won ? 0x22cc88 : 0xff2200, 0.8);
         VFX.screenShake(this, 0.01, 400);
         this.time.delayedCall(500, () => {
@@ -1034,11 +1041,8 @@ export class Game extends Scene {
                 won,
                 stars,
                 reason,
-                points:          this.points,
-                products:        this.resources.electricity + this.resources.fuel + this.resources.titanium,
-                spaceshipsBuilt: this.spaceshipsBuilt,
-                levelIndex:      this.levelIndex,
-                level:           this.levelData,
+                levelIndex: this.levelIndex,
+                timeTaken:  Math.round(this.levelData.timeLimit - this.timeRemaining),
             });
         });
     }

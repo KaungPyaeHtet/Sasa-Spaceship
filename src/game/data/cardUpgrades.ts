@@ -1,12 +1,20 @@
 import { Card, cardDefinitions } from './cards';
 
-/** Returns the card for the given level, using base stats from cards.ts and the level-specific image. */
+/** Returns the card scaled to the given level.
+ *  resourceAmount += (levelIndex - 1)   e.g. level 1 → +0, level 2 → +1, level 3 → +2 …
+ *  duration       += (levelIndex - 1) * 0.25
+ */
 export function getCardAtTier(cardId: string, _tier: number, levelIndex: number): Card {
-    const base = cardDefinitions.find(c => c.id === cardId)!;
-    return { ...base, imageKey: `${cardId}_t${levelIndex}` };
+    const base  = cardDefinitions.find(c => c.id === cardId)!;
+    const bonus = levelIndex - 1;
+    return {
+        ...base,
+        imageKey:       `${cardId}_t${levelIndex}`,
+        resourceAmount: base.resourceAmount > 0 ? base.resourceAmount + bonus : 0,
+        duration:       parseFloat((base.duration + bonus * 0.10).toFixed(2)),
+    };
 }
 
-/** Kept for compatibility — no longer used for stat scaling. */
 export function tierForLevel(_levelIndex: number): number {
     return 0;
 }

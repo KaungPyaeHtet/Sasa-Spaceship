@@ -3,6 +3,8 @@ import { AUDIO, playSFX } from '../audio/AudioManager';
 
 const PANELS = ['story1', 'story2', 'story3', 'story4'];
 
+const PANEL_AUDIO = [AUDIO.INTRO_1, AUDIO.MACHINE_INTRO_1, AUDIO.INTRO_2, AUDIO.MACHINE_INTRO_2];
+
 export class Story extends Scene {
     private current = 0;
     private panel!: Phaser.GameObjects.Image;
@@ -17,6 +19,11 @@ export class Story extends Scene {
         this.input.on('pointerdown', () => this.advance());
     }
 
+    private stopCurrentVoice() {
+        const key = PANEL_AUDIO[this.current];
+        if (key) this.sound.get(key)?.stop();
+    }
+
     private showPanel(index: number) {
         if (this.panel) this.panel.destroy();
 
@@ -27,10 +34,8 @@ export class Story extends Scene {
 
         this.tweens.add({ targets: this.panel, alpha: 1, duration: 400, ease: 'Linear' });
 
-        if (index === 0) playSFX(this, AUDIO.INTRO_1);
-        if (index === 1) playSFX(this, AUDIO.MACHINE_INTRO_1);
-        if (index === 2) playSFX(this, AUDIO.INTRO_2);
-        if (index === 3) playSFX(this, AUDIO.MACHINE_INTRO_2);
+        const key = PANEL_AUDIO[index];
+        if (key) playSFX(this, key);
 
         if (this.hint) this.hint.destroy();
         const label = index < PANELS.length - 1 ? 'Click to continue...' : 'Click to start!';
@@ -43,6 +48,7 @@ export class Story extends Scene {
     }
 
     private advance() {
+        this.stopCurrentVoice();
         this.current++;
         if (this.current >= PANELS.length) {
             this.scene.start('MainMenu');

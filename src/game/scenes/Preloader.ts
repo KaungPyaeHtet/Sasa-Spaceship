@@ -61,6 +61,11 @@ export class Preloader extends Scene {
             this.load.image(`machine${i}`, `machine${i}.png`);
         }
 
+        this.load.path = "assets/machine/level5/";
+        for (let i = 1; i <= 4; i++) {
+            this.load.image(`machine_l5_${i}`, `Level 4~6 machine_${i}.png`);
+        }
+
         this.load.path = "assets/spaceships/";
         this.load.image("spaceship_1",   "level1.png");
         this.load.image("spaceship_2",   "level2.png");
@@ -165,14 +170,18 @@ export class Preloader extends Scene {
     create() {
         VFX.initTextures(this);
         createAnimations(this.anims);
-        document.fonts.load('1em Supercharge').then(() => {
+        const go = () => {
             this.scene.transition({
-                // Change this in production
-                target: "MainMenu",
-                // target: "Story",
+                target: "Story",
                 duration: 500,
                 moveBelow: true,
             });
-        });
+        };
+        // 2s timeout fallback so a font 404 never blocks the game
+        const timer = setTimeout(go, 2000);
+        document.fonts.load('1em Supercharge').then(() => {
+            clearTimeout(timer);
+            go();
+        }).catch(() => { clearTimeout(timer); go(); });
     }
 }

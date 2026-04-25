@@ -2,11 +2,10 @@ import { Scene } from 'phaser';
 import { playHover } from '../ui/sounds';
 
 const CREDITS = [
-    { role: 'SASA SPACES', name: '', big: true },
     { role: '', name: '', big: false },
     { role: "Game Design", name: "Vincent", big: false},
     { role: 'Coding',  name: 'Ozzy', big: false },
-    { role: 'Graphic Design & Illustration',  name: 'Kimmy', big: false },
+    { role: 'Game Art & UI',  name: 'Kimmey', big: false },
     { role: 'Audio & Storyline', name: 'Nora', big: false },
     { role: 'Sound',        name: 'Alex', big: false },
     { role: '',             name: '', big: false },
@@ -31,6 +30,10 @@ export class Credits extends Scene {
         const container = this.add.container(0, 0);
         let offsetY = 768; // start below screen
 
+        const logo = this.add.image(512, offsetY + 100, 'logo').setOrigin(0.5, 0).setScale(0.15);
+        container.add(logo);
+        offsetY += 350;
+
         CREDITS.forEach(entry => {
             if (!entry.role && !entry.name) {
                 offsetY += 24;
@@ -39,24 +42,25 @@ export class Credits extends Scene {
 
             if (entry.big) {
                 const t = this.add.text(512, offsetY, entry.role, {
-                    fontFamily: 'Arial Black',
-                    fontSize: '32px',
+                    fontFamily: 'Supercharge',
+                    fontSize: '34px',
                     color: '#00aeff',
                     align: 'center',
                 }).setOrigin(0.5, 0);
                 container.add(t);
-                offsetY += 52;
+                offsetY += 56;
             } else {
                 const role = this.add.text(380, offsetY, entry.role, {
-                    fontSize: '18px',
+                    fontFamily: 'Supercharge',
+                    fontSize: '17px',
                     color: '#888888',
                     align: 'right',
                 }).setOrigin(1, 0);
 
                 const name = this.add.text(400, offsetY, entry.name, {
-                    fontSize: '18px',
+                    fontFamily: 'Supercharge',
+                    fontSize: '17px',
                     color: '#ffffff',
-                    fontStyle: 'bold',
                 }).setOrigin(0, 0);
 
                 container.add([role, name]);
@@ -64,19 +68,25 @@ export class Credits extends Scene {
             }
         });
 
-        const totalHeight = offsetY + 200;
+        // Stop when the last credit line rests near the vertical center of the screen
+        const lastLineY = offsetY - 56; // top of the last big entry
+        const stopY = 384 - lastLineY;  // container.y that puts last line at y=384
 
-        // Scroll the container upward
+        const scrollDistance = Math.abs(stopY); // 0 → stopY (negative)
+        const duration = scrollDistance * 18;
+
         this.tweens.add({
             targets: container,
-            y: -(totalHeight),
-            duration: totalHeight * 18, // ~18ms per pixel → smooth scroll
+            y: stopY,
+            duration,
             ease: 'Linear',
-            onComplete: () => this.scene.start('MainMenu'),
+            onComplete: () => {
+                this.time.delayedCall(2000, () => this.scene.start('MainMenu'));
+            },
         });
 
         // Skip button
-        this.makeButton(512, 720, 'Skip → Main Menu', () => this.scene.start('MainMenu'));
+        this.makeButton(512, 720, 'Skip', () => this.scene.start('MainMenu'));
 
         // Entrance fade
         this.cameras.main.setAlpha(0);
@@ -86,7 +96,7 @@ export class Credits extends Scene {
     private makeButton(x: number, y: number, label: string, onClick: () => void) {
         const bg = this.add.image(x, y, 'blue_button').setScale(0.1).setInteractive({ useHandCursor: true });
         this.add.text(x, y, label, {
-            fontFamily: 'Arial Black',
+            fontFamily: 'Supercharge',
             fontSize: '20px',
             color: '#ffffff',
             stroke: '#000000',
