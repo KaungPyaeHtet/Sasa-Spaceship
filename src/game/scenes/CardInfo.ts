@@ -109,9 +109,6 @@ export class CardInfo extends Scene {
                 .setInteractive({ useHandCursor: true }));
 
             sadd(this.add.image(x, 108, `${card.imageKey}_t${tier}`).setDisplaySize(82, 118));
-            sadd(this.add.text(x, 178, card.name, {
-                fontSize: '9px', color: '#cccccc', align: 'center', wordWrap: { width: 88 },
-            }).setOrigin(0.5, 0));
 
             bg.on('pointerover', () => { bg.setFillStyle(0x1a2a3a); playHover(this); })
               .on('pointerout',  () => bg.setFillStyle(0x0a1020))
@@ -154,12 +151,6 @@ export class CardInfo extends Scene {
             scale: { start: 0.4, end: 0 }, tint: [pal.particle],
             frequency: 120, quantity: 1,
         }));
-
-        // Card name
-        add(this.add.text(200, 310, card.name.toUpperCase(), {
-            fontFamily: 'Arial Black', fontSize: '22px', color: '#ffffff',
-            stroke: '#000000', strokeThickness: 4, align: 'center',
-        }).setOrigin(0.5));
 
         // Stats panel (right of card image)
         const SX = 430;
