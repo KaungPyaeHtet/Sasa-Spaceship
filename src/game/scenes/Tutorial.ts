@@ -20,8 +20,8 @@ const STEPS: TutorialStep[] = [
     },
     {
         title: 'Your Hand',
-        body:  'Three cards are dealt to you at the bottom.\n\nEach card shows:\n• Resource type it produces\n• Heat it generates\n• Processing time\n• Point value\n\nDrag a card up to the machine to process it.',
-        hl:    { x: 512, y: 660, w: 700, h: 140 },
+        body:  'Four cards are dealt to you at the bottom.\n\nEach card shows:\n• Resource type it produces\n• Heat it generates\n• Processing time\n• Point value\n\nDrag a card up to the machine to process it.',
+        hl:    { x: 512, y: 660, w: 480, h: 165 },
     },
     {
         title: 'The Machine',
@@ -34,39 +34,39 @@ const STEPS: TutorialStep[] = [
         hl:    { x: 130, y: 260, w: 250, h: 200 },
     },
     {
-        title: '⚡ Electricity Card',
-        body:  'Processes in 1s • No heat • +3 Electricity • 5 pts\n\nFastest card in the game. Generates no heat so it\'s safe to spam early on.\n\nCombo: pair with Solar or Boost for bonus electricity.',
-        hl:    { x: 365, y: 660, w: 140, h: 140 },
+        title: 'Electricity Card',
+        body:  'Processes in 2s • No heat • +3 Electricity • 2 pts\n\nFastest card in the game. Generates no heat so it\'s safe to spam early on.\n\nCombo: pair with Solar or Boost for bonus electricity.',
+        hl:    { x: 340, y: 660, w: 110, h: 160 },
     },
     {
-        title: '🛢️ Fuel Cell Card',
-        body:  'Processes in 2s • +5 heat • +3 Fuel • 1 pt\n\nCore fuel source but adds heat. Use Coolant between runs to keep the reactor safe.\n\nCombo: pair with Boost to double fuel output.',
-        hl:    { x: 512, y: 660, w: 140, h: 140 },
+        title: 'Fuel Cell Card',
+        body:  'Processes in 2s • +3 heat • +4 Fuel • 2 pts\n\nCore fuel source but adds heat. Use Coolant between runs to keep the reactor safe.\n\nCombo: pair with Boost to double fuel output.',
+        hl:    { x: 455, y: 660, w: 110, h: 160 },
     },
     {
-        title: '🔩 Titanium Card',
-        body:  'Processes in 2s • +5 heat • +4 Titanium • 2 pts\n\nHighest resource value per card. Generates heat like Fuel.\n\nCombo: pair with Boost to double titanium output.',
-        hl:    { x: 660, y: 660, w: 140, h: 140 },
+        title: 'Titanium Card',
+        body:  'Processes in 3s • +3 heat • +5 Titanium • 2 pts\n\nHighest resource value per card. Generates heat like Fuel.\n\nCombo: pair with Boost to double titanium output.',
+        hl:    { x: 570, y: 660, w: 110, h: 160 },
     },
     {
-        title: '❄️ Coolant Card',
-        body:  'Processes in 5s • −25 heat • No resources • 0 pts\n\nSlow but essential. Drops heat by 25 points.\n\nCombo: process alongside any hot card (Fuel, Boost, Titanium) to trigger the CRYO COMBO for an extra −8 heat on top.',
-        hl:    { x: 810, y: 660, w: 140, h: 140 },
+        title: 'Coolant Card',
+        body:  'Processes in 3s • −35 heat • No resources • 1 pt\n\nSlow but essential. Drops heat significantly.\n\nCombo: process alongside any hot card (Fuel, Boost, Titanium) to trigger the CRYO COMBO for an extra −8 heat on top.',
+        hl:    { x: 685, y: 660, w: 110, h: 160 },
     },
     {
-        title: '🚀 Booster Card',
-        body:  'Processes in 2s • No heat • No direct resource • 0 pts\n\nDoesn\'t produce resources on its own but triggers powerful BOOST COMBOs.\n\nProcess it alongside Electricity, Fuel, or Titanium to grant a free bonus copy of that resource instantly.',
-        hl:    { x: 365, y: 660, w: 140, h: 140 },
+        title: 'Booster Card',
+        body:  'Processes in 1s • +3 heat • No direct resource • 1 pt\n\nDoesn\'t produce resources on its own but triggers powerful BOOST COMBOs.\n\nProcess it alongside Electricity, Fuel, or Titanium to grant a free bonus copy of that resource instantly.',
+        hl:    null,
     },
     {
-        title: '☀️ Solar Panel Card',
+        title: 'Solar Panel Card',
         body:  'Processes in 2s • No heat • No direct resource • 5 pts\n\nPure combo card. By itself it does nothing special.\n\nSOLAR COMBO: process it alongside an Electricity card to award +3 bonus electricity on top of the normal output.',
-        hl:    { x: 512, y: 660, w: 140, h: 140 },
+        hl:    null,
     },
     {
-        title: '🔭 Monitor Card',
-        body:  'Processes in 0.5s • No heat • No resources • 0 pts\n\nLightest card in the deck. Completes almost instantly.\n\nReveals your next upcoming card so you can plan your strategy ahead of time.',
-        hl:    { x: 660, y: 660, w: 140, h: 140 },
+        title: 'Monitor Card',
+        body:  'Processes in 0.5s • No heat • No resources • 1 pt\n\nLightest card in the deck. Completes almost instantly.\n\nReveals your next upcoming card so you can plan your strategy ahead of time.',
+        hl:    null,
     },
     {
         title: '🔥 Heat Bar',
@@ -74,28 +74,28 @@ const STEPS: TutorialStep[] = [
         hl:    { x: 920, y: 30, w: 200, h: 60 },
     },
     {
-        title: '✨ Combo System',
-        body:  'Run compatible cards in the same session for bonus effects:\n\n🚀+⚡  Boost+Electric   → free +Electricity\n🚀+🛢️  Boost+Fuel       → free +Fuel\n🚀+🔩  Boost+Titanium   → free +Titanium\n☀️+⚡  Solar+Electric   → +3 bonus electricity\n❄️+any hot card       → extra −8 heat',
-        hl:    { x: 920, y: 285, w: 200, h: 200 },
+        title: 'Combo System',
+        body:  'Run compatible cards in the same session for bonus effects:\n\nBoost + Electricity  → free +Electricity\nBoost + Fuel         → free +Fuel\nBoost + Titanium     → free +Titanium\nSolar + Electricity  → +3 bonus electricity\nCoolant + hot card   → extra −8 heat (Cryo)',
+        hl:    { x: 920, y: 370, w: 200, h: 200 },
     },
     {
-        title: '⚡ Power Mode',
-        body:  'Earn 20 points to unlock POWER MODE.\n\nThis opens 2 extra processing slots (3 total) so you can run multiple cards simultaneously — essential for triggering combos and clearing resources fast.\n\nCosts are reset between ships so keep earning points!',
+        title: 'Power Mode',
+        body:  'Earn 10 points to unlock POWER MODE.\n\nThis opens 2 extra processing slots (3 total) so you can run multiple cards simultaneously — essential for triggering combos and clearing resources fast.\n\nCosts are reset between ships so keep earning points!',
         hl:    { x: 512, y: 460, w: 250, h: 50 },
     },
     {
-        title: '⏱️ Timer',
+        title: 'Timer',
         body:  'The bar at the top counts down the mission time.\n\nIt turns yellow then red as time runs short.\n\nCombo bonuses award +3 seconds each — chain combos to buy yourself more time!\n\nIf the timer hits zero, your current ship count is rated.',
         hl:    { x: 512, y: 22, w: 240, h: 28 },
     },
     {
-        title: '⚠️ Random Events',
-        body:  'From level 3 onwards, random events can strike mid-mission:\n\n☄️ Meteor Shower (L3+) — instant heat spike, react fast!\n🌞 Solar Flare (L5+) — heat builds 2× faster for 6s\n⚠️ System Glitch (L7+) — all processing freezes for 4s\n\nA warning banner flashes when an event hits. Keep Coolant ready!',
+        title: 'Random Events',
+        body:  'From level 3 onwards, random events can strike mid-mission:\n\nMeteor Shower (L3+)  — instant heat spike, react fast!\nSolar Flare (L5+)    — heat builds 1.25x faster for 6s\nSystem Glitch (L7+)  — all processing freezes for 4s\n\nA warning banner flashes when an event hits. Keep Coolant ready!',
         hl:    null,
     },
     {
         title: 'Ready to Launch?',
-        body:  'That\'s everything, engineer!\n\n• Process cards → fill 3 resource bars\n• Launch ship → repeat up to 3 times\n• Manage heat or it\'s mission failure\n• Combo cards for bonuses & extra time\n\nGood luck. The galaxy is counting on you!',
+        body:  'That\'s everything, engineer!\n\n• Process cards to fill 3 resource bars\n• Launch ship and repeat up to 3 times\n• Manage heat or it\'s mission failure\n• Combo cards for bonuses and extra time\n\nGood luck. The galaxy is counting on you!',
         hl:    null,
     },
 ];
@@ -154,13 +154,13 @@ export class Tutorial extends Scene {
 
         // Combo panel (matches ComboPanel.ts positioning)
         this.add.rectangle(922, 370, 188, 164, 0x0a1020, 0.85).setStrokeStyle(1, 0x334466).setDepth(8);
-        this.add.text(922, 290, '✨ COMBOS', { fontSize: '11px', color: '#aaccff', fontStyle: 'bold' }).setOrigin(0.5, 0).setDepth(9);
+        this.add.text(922, 290, 'COMBOS', { fontSize: '11px', color: '#aaccff', fontStyle: 'bold' }).setOrigin(0.5, 0).setDepth(9);
         [
-            ['🚀 + ⚡ Boost+Electric', '→ free +Electricity'],
-            ['🚀 + 🛢️ Boost+Fuel',    '→ free +Fuel'],
-            ['🚀 + 🔩 Boost+Titanium','→ free +Titanium'],
-            ['☀️ + ⚡ Solar+Electric', '→ +3 bonus elec'],
-            ['❄️ + 🔥 Cryo+Hot',      '→ extra −8 heat'],
+            ['Boost + Electricity', '→ free +Electricity'],
+            ['Boost + Fuel',        '→ free +Fuel'],
+            ['Boost + Titanium',    '→ free +Titanium'],
+            ['Solar + Electricity', '→ +3 bonus elec'],
+            ['Coolant + hot card',  '→ extra −8 heat'],
         ].forEach(([lbl, eff], i) => {
             const cy = 305 + i * 30;
             this.add.text(836, cy,      lbl, { fontSize: '10px', color: '#ddddff' }).setDepth(9);
@@ -180,14 +180,17 @@ export class Tutorial extends Scene {
 
         // Power unlock button mock
         this.add.rectangle(512, 460, 240, 42, 0x1a0a2e).setStrokeStyle(2, 0xaa44ff).setDepth(8);
-        this.add.text(512, 460, '⚡ POWER UNLOCK  (20 ⭐)', { fontSize: '12px', color: '#cc88ff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(9);
+        this.add.text(512, 460, 'POWER UNLOCK  (10 pts)', { fontSize: '12px', color: '#cc88ff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(9);
 
-        // Card hand mock — 3 cards matching HAND_SIZE
-        const cardKeys = ['electricity', 'fuel', 'titanium'];
-        const handStartX = 512 - (cardKeys.length - 1) * 150 / 2;
+        // Card hand mock — 4 cards matching HAND_SIZE=4 in Game.ts
+        const CARD_W = 100; const CARD_H = 148; const CARD_SPACING = 115;
+        const cardKeys = ['electricity', 'fuel', 'titanium', 'cool'];
+        const handStartX = 512 - (cardKeys.length - 1) * CARD_SPACING / 2;
         cardKeys.forEach((key, i) => {
-            const cx = handStartX + i * 150;
-            this.add.image(cx, 660, `${key}_t1`).setDisplaySize(130, 190).setAlpha(0.9).setDepth(5);
+            const cx = handStartX + i * CARD_SPACING;
+            this.add.rectangle(cx, 660, CARD_W + 6, CARD_H + 6, 0x080f1a)
+                .setStrokeStyle(2, 0x3366aa).setDepth(4);
+            this.add.image(cx, 660, `${key}_t1`).setDisplaySize(CARD_W, CARD_H).setDepth(5);
         });
 
         // ── Dark overlay (cutout highlight) ───────────────────────────────

@@ -83,8 +83,10 @@ export class GameOver extends Scene {
         }
 
         // Buttons
+        const isLevel10Complete = this.gameResult.levelIndex === 10 && won;
         this.makeButton(512, 500, 'Play Again', () => this.scene.start('LevelMenu'));
-        this.makeButton(512, 570, 'Main Menu',  () => this.scene.start('MainMenu'));
+        this.makeButton(512, 570, isLevel10Complete ? 'View Achievement' : 'Main Menu',
+            () => this.scene.start(isLevel10Complete ? 'Achievement' : 'MainMenu'));
 
         // Entrance animation
         this.cameras.main.setAlpha(0);

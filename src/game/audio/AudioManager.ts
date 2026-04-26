@@ -9,6 +9,7 @@ export const AUDIO = {
     BG_MUSIC_3:         'bg_music_3',
     BTN_HOVER:          'btn_hover',
     LAUNCH:             'launch',
+    VICTORY:            'victory',
     MACHINE_INTRO_1:    'machine_intro_1',
     MACHINE_INTRO_2:    'machine_intro_2',
     INTRO_1:            'intro_1',
@@ -36,12 +37,21 @@ export type AudioKey = typeof AUDIO[keyof typeof AUDIO];
 
 const STORAGE_KEY = 'sasa_volumes';
 
-const defaults = { music: 0.12, sfx: 0.6, voicelines: 0.85, cardSfx: 1.0 };
+const defaults = { music: 0.12, sfx: 1.0, voicelines: 1.0, cardSfx: 1.0 };
+
+// Minimum floors — any saved value below these gets silently raised on load
+const floors = { music: 0, sfx: 0.9, voicelines: 0.9, cardSfx: 0.9 };
 
 function loadVolumes() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
+        const saved = raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
+        let bumped = false;
+        for (const k of Object.keys(floors) as (keyof typeof floors)[]) {
+            if (saved[k] < floors[k]) { saved[k] = floors[k]; bumped = true; }
+        }
+        if (bumped) localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+        return saved;
     } catch { return { ...defaults }; }
 }
 
@@ -68,6 +78,7 @@ export function setSfxVolume(v: number) {
 export function setVoicelineVolume(v: number) {
     volumes.voicelines = v;
     save();
+    (activeVoiceline as Phaser.Sound.WebAudioSound | null)?.setVolume(v);
 }
 
 export function setCardSfxVolume(v: number) {
@@ -85,6 +96,7 @@ export function preloadAudio(scene: Scene) {
     scene.load.audio(AUDIO.BG_MUSIC_3,      'background_music3.mp3');
     scene.load.audio(AUDIO.BTN_HOVER,       'button_hover_click.mp3');
     scene.load.audio(AUDIO.LAUNCH,          'launch.mp3');
+    scene.load.audio(AUDIO.VICTORY,         'victory.mp3');
 
     scene.load.path = 'assets/audio/card/';
     scene.load.audio(AUDIO.CARD_ACCELERATE, 'Accelerate.m4a');
@@ -152,6 +164,14 @@ export function playGameMusic(scene: Scene, levelIndex: number) {
 export function playSFX(scene: Scene, key: AudioKey) {
     if (scene.cache.audio.has(key)) {
         scene.sound.play(key, { volume: volumes.sfx });
+    }
+}
+
+const CARD_SFX_BOOST = 1.5;
+
+export function playCardSound(scene: Scene, key: AudioKey) {
+    if (scene.cache.audio.has(key)) {
+        scene.sound.play(key, { volume: Math.min(volumes.sfx * CARD_SFX_BOOST, 2.0) });
     }
 }
 

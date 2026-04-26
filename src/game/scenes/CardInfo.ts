@@ -1,29 +1,29 @@
 import { Scene } from 'phaser';
-import { cardDefinitions, Card } from '../data/cards';
+import { cardDefinitions } from '../data/cards';
 import { CARD_COLORS } from '../vfx/VFX';
 import { playHover } from '../ui/sounds';
 
 const COMBOS: Record<string, { partner: string; icon: string; effect: string; color: string }[]> = {
     electricity: [
-        { partner: 'Booster',     icon: '🚀', effect: 'BOOST COMBO — instantly awards a free copy of your Electricity output', color: '#aaffcc' },
-        { partner: 'Solar Panel', icon: '☀️', effect: 'SOLAR COMBO — awards +3 bonus Electricity on top of normal output',      color: '#ffee88' },
+        { partner: 'Booster',     icon: '', effect: 'BOOST COMBO — instantly awards a free copy of your Electricity output', color: '#aaffcc' },
+        { partner: 'Solar Panel', icon: '', effect: 'SOLAR COMBO — awards +3 bonus Electricity on top of normal output',      color: '#ffee88' },
     ],
     fuel: [
-        { partner: 'Booster', icon: '🚀', effect: 'BOOST COMBO — instantly awards a free copy of your Fuel output', color: '#aaffcc' },
+        { partner: 'Booster', icon: '', effect: 'BOOST COMBO — instantly awards a free copy of your Fuel output', color: '#aaffcc' },
     ],
     titanium: [
-        { partner: 'Booster', icon: '🚀', effect: 'BOOST COMBO — instantly awards a free copy of your Titanium output', color: '#aaffcc' },
+        { partner: 'Booster', icon: '', effect: 'BOOST COMBO — instantly awards a free copy of your Titanium output', color: '#aaffcc' },
     ],
     cool: [
-        { partner: 'Fuel / Booster / Titanium', icon: '❄️', effect: 'CRYO COMBO — process alongside any hot card for an extra −8 heat reduction', color: '#88ddff' },
+        { partner: 'Fuel / Booster / Titanium', icon: '', effect: 'CRYO COMBO — process alongside any hot card for an extra −8 heat reduction', color: '#88ddff' },
     ],
     boost: [
-        { partner: 'Electricity', icon: '⚡', effect: 'BOOST COMBO — grants a free Electricity bonus', color: '#cc88ff' },
-        { partner: 'Fuel',        icon: '🛢️', effect: 'BOOST COMBO — grants a free Fuel bonus',        color: '#cc88ff' },
-        { partner: 'Titanium',    icon: '🔩', effect: 'BOOST COMBO — grants a free Titanium bonus',    color: '#cc88ff' },
+        { partner: 'Electricity', icon: '', effect: 'BOOST COMBO — grants a free Electricity bonus', color: '#cc88ff' },
+        { partner: 'Fuel',        icon: '', effect: 'BOOST COMBO — grants a free Fuel bonus',        color: '#cc88ff' },
+        { partner: 'Titanium',    icon: '', effect: 'BOOST COMBO — grants a free Titanium bonus',    color: '#cc88ff' },
     ],
     solar: [
-        { partner: 'Electricity', icon: '⚡', effect: 'SOLAR COMBO — awards +3 bonus Electricity when processed together', color: '#ffee88' },
+        { partner: 'Electricity', icon: '', effect: 'SOLAR COMBO — awards +3 bonus Electricity when processed together', color: '#ffee88' },
     ],
     monitor: [],
 };
@@ -41,7 +41,11 @@ const TIPS: Record<string, string> = {
 const CARD_ORDER = ['electricity', 'fuel', 'titanium', 'cool', 'boost', 'solar', 'monitor'];
 
 export class CardInfo extends Scene {
-    private detailGroup: Phaser.GameObjects.GameObject[] = [];
+    private detailGroup:   Phaser.GameObjects.GameObject[] = [];
+    private selectorGroup: Phaser.GameObjects.GameObject[] = [];
+    private currentTier    = 1;
+    private currentCardIdx = 0;
+    private tierLabel!:    Phaser.GameObjects.Text;
 
     constructor() { super('CardInfo'); }
 
@@ -49,48 +53,73 @@ export class CardInfo extends Scene {
         this.add.image(512, 384, 'background').setAlpha(0.4);
         this.add.rectangle(512, 384, 1024, 768, 0x000000, 0.55);
 
-
         // Back button
         const backBtn = this.add.image(80, 40, 'back_button').setDisplaySize(120, 50)
             .setInteractive({ useHandCursor: true })
             .on('pointerover', () => { backBtn.setAlpha(0.75); playHover(this); })
             .on('pointerout',  () => backBtn.setAlpha(1))
-            .on('pointerdown', () => this.scene.start('MainMenu'));
+            .on('pointerdown', () => this.scene.start('LevelMenu'));
 
-        // Card selector row
-        const cards = CARD_ORDER.map(id => cardDefinitions.find(c => c.id === id)!);
-        this.buildSelector(cards);
+        // Tier switcher (bottom centre)
+        const prevBtn = this.add.text(380, 742, '◀', {
+            fontSize: '22px', color: '#aaaaaa', fontStyle: 'bold',
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+          .on('pointerover', () => prevBtn.setColor('#ffffff'))
+          .on('pointerout',  () => prevBtn.setColor('#aaaaaa'))
+          .on('pointerdown', () => this.changeTier(-1));
 
-        // Initial detail view
-        this.showCard(cards[0], 0);
+        this.tierLabel = this.add.text(512, 742, 'Level 1', {
+            fontSize: '18px', color: '#ffffff', fontStyle: 'bold',
+            stroke: '#000000', strokeThickness: 3,
+        }).setOrigin(0.5);
+
+        const nextBtn = this.add.text(644, 742, '▶', {
+            fontSize: '22px', color: '#aaaaaa', fontStyle: 'bold',
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+          .on('pointerover', () => nextBtn.setColor('#ffffff'))
+          .on('pointerout',  () => nextBtn.setColor('#aaaaaa'))
+          .on('pointerdown', () => this.changeTier(1));
+
+        this.buildSelector();
+        this.showCard();
     }
 
-    private buildSelector(cards: Card[]) {
+    private changeTier(dir: number) {
+        this.currentTier = Math.max(1, Math.min(10, this.currentTier + dir));
+        this.tierLabel.setText(`Level ${this.currentTier}`);
+        this.buildSelector();
+        this.showCard();
+    }
+
+    private buildSelector() {
+        this.selectorGroup.forEach(o => o.destroy());
+        this.selectorGroup = [];
+        const sadd = <T extends Phaser.GameObjects.GameObject>(o: T): T => { this.selectorGroup.push(o); return o; };
+
+        const cards  = CARD_ORDER.map(id => cardDefinitions.find(c => c.id === id)!);
         const startX = 512 - ((cards.length - 1) * 108) / 2;
+        const tier   = this.currentTier;
+
         cards.forEach((card, i) => {
             const x   = startX + i * 108;
             const pal = CARD_COLORS[card.imageKey] ?? { border: 0x4488ff, bg: 0x1a2a4a, particle: 0x4488ff };
 
-            const bg = this.add.rectangle(x, 115, 90, 130, 0x0a1020)
+            const bg = sadd(this.add.rectangle(x, 115, 90, 130, 0x0a1020)
                 .setStrokeStyle(2, pal.border)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true }));
 
-            this.add.image(x, 108, `${card.imageKey}_t1`).setDisplaySize(82, 118);
-
-            this.add.text(x, 178, card.name, {
-                fontSize: '9px', color: '#cccccc', align: 'center',
-                wordWrap: { width: 88 },
-            }).setOrigin(0.5, 0);
+            sadd(this.add.image(x, 108, `${card.imageKey}_t${tier}`).setDisplaySize(82, 118));
+            sadd(this.add.text(x, 178, card.name, {
+                fontSize: '9px', color: '#cccccc', align: 'center', wordWrap: { width: 88 },
+            }).setOrigin(0.5, 0));
 
             bg.on('pointerover', () => { bg.setFillStyle(0x1a2a3a); playHover(this); })
               .on('pointerout',  () => bg.setFillStyle(0x0a1020))
-              .on('pointerdown', () => {
-                  this.showCard(card, i);
-              });
+              .on('pointerdown', () => { this.currentCardIdx = i; this.showCard(); });
         });
     }
 
-    private showCard(card: Card, index: number) {
+    private showCard() {
         this.detailGroup.forEach(o => o.destroy());
         this.detailGroup = [];
 
@@ -99,19 +128,25 @@ export class CardInfo extends Scene {
             return o;
         };
 
-        const pal     = CARD_COLORS[card.imageKey] ?? { border: 0x4488ff, bg: 0x1a2a4a, particle: 0x4488ff };
-        const combos  = COMBOS[card.id] ?? [];
-        const tip     = TIPS[card.id] ?? '';
+        const cards  = CARD_ORDER.map(id => cardDefinitions.find(c => c.id === id)!);
+        const card   = cards[this.currentCardIdx];
+        const index  = this.currentCardIdx;
+        const tier   = this.currentTier;
+        const bonus  = tier - 1;
+        const scaledDuration = parseFloat((card.duration + bonus * 0.10).toFixed(2));
+        const scaledResource = card.resourceAmount > 0 ? card.resourceAmount + bonus : 0;
+        const pal    = CARD_COLORS[card.imageKey] ?? { border: 0x4488ff, bg: 0x1a2a4a, particle: 0x4488ff };
+        const combos = COMBOS[card.id] ?? [];
+        const tip    = TIPS[card.id] ?? '';
 
         // Selection highlight on selector
-        const cards   = CARD_ORDER.map(id => cardDefinitions.find(c => c.id === id)!);
-        const startX  = 512 - ((cards.length - 1) * 108) / 2;
+        const startX = 512 - ((cards.length - 1) * 108) / 2;
         add(this.add.rectangle(startX + index * 108, 115, 94, 134, 0x000000, 0)
             .setStrokeStyle(3, 0xffffff));
 
         // Large card image (left)
         add(this.add.rectangle(200, 450, 220, 310, 0x050d18).setStrokeStyle(3, pal.border));
-        add(this.add.image(200, 445, `${card.imageKey}_t1`).setDisplaySize(210, 300));
+        add(this.add.image(200, 445, `${card.imageKey}_t${tier}`).setDisplaySize(210, 300));
 
         // Particle burst behind card
         add(this.add.particles(200, 445, 'vfx_dot', {
@@ -136,10 +171,10 @@ export class CardInfo extends Scene {
         SY += 26;
 
         const statRows: [string, string, string][] = [
-            ['⏱  Process time', `${card.duration}s`,                                  '#ffffff'],
-            ['🔥  Heat',         card.heat > 0 ? `+${card.heat}` : card.heat < 0 ? `${card.heat}` : 'None', card.heat > 0 ? '#ff6655' : card.heat < 0 ? '#88ddff' : '#888888'],
-            ['📦  Resource',     card.resource ? `+${card.resourceAmount} ${card.resource.toUpperCase()}` : 'None', card.resource ? '#aaffcc' : '#888888'],
-            ['⭐  Points',       card.points > 0 ? `+${card.points}` : 'None',       card.points > 0 ? '#ffcc44' : '#888888'],
+            ['Process time', `${scaledDuration}s`,                                                                                     '#ffffff'],
+            ['Heat',         card.heat > 0 ? `+${card.heat}` : card.heat < 0 ? `${card.heat}` : 'None',                               card.heat > 0 ? '#ff6655' : card.heat < 0 ? '#88ddff' : '#888888'],
+            ['Resource',     scaledResource > 0 ? `+${scaledResource} ${card.resource!.toUpperCase()}` : 'None',                       scaledResource > 0 ? '#aaffcc' : '#888888'],
+            ['Power Points', card.points > 0 ? `+${card.points}` : 'None',                                                            card.points > 0 ? '#ffcc44' : '#888888'],
         ];
 
         statRows.forEach(([label, value, col]) => {
@@ -182,7 +217,7 @@ export class CardInfo extends Scene {
             combos.forEach(combo => {
                 const row = add(this.add.rectangle(SX + 130, SY + 18, 266, 38, 0x0a1428).setStrokeStyle(1, 0x334466));
                 void row;
-                add(this.add.text(SX + 6, SY + 4, `${combo.icon} ${combo.partner}`, {
+                add(this.add.text(SX + 6, SY + 4, combo.partner, {
                     fontSize: '12px', color: '#ffffff', fontStyle: 'bold',
                 }));
                 add(this.add.text(SX + 6, SY + 20, combo.effect, {

@@ -55,6 +55,7 @@ export class Preloader extends Scene {
         this.load.image("story2", "scene2.png");
         this.load.image("story3", "scene3.png");
         this.load.image("story4", "scene4.png");
+        this.load.image("achievement_scene", "Achievement scene.png");
 
         this.load.path = "assets/machine/level1_2/";
         for (let i = 1; i <= 4; i++) {

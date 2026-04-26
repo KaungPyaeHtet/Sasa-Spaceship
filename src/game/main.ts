@@ -11,6 +11,7 @@ import { Credits } from './scenes/Credits';
 import { Story } from './scenes/Story';
 import { PauseMenu } from './scenes/PauseMenu';
 import { CardInfo } from './scenes/CardInfo';
+import { Achievement } from './scenes/Achievement';
 
 //  Find out more information about the Game Config at:
 //  https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
@@ -38,6 +39,7 @@ const config: Phaser.Types.Core.GameConfig = {
         Credits,
         PauseMenu,
         CardInfo,
+        Achievement,
     ]
 };
 

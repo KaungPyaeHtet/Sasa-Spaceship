@@ -23,6 +23,17 @@ export class LevelMenu extends Scene {
             strokeThickness: 5,
         }).setOrigin(0.5);
 
+        // Card Encyclopedia button (top-right)
+        const encBtn = this.add.image(900, 64, 'blue_button')
+            .setDisplaySize(180, 48).setInteractive({ useHandCursor: true })
+            .on('pointerover', () => { encBtn.setTint(0xcccccc); playHover(this); })
+            .on('pointerout',  () => encBtn.clearTint())
+            .on('pointerdown', () => this.scene.start('CardInfo'));
+        this.add.text(900, 64, 'Card Info', {
+            fontFamily: 'Arial Black', fontSize: '18px',
+            color: '#ffffff', stroke: '#000000', strokeThickness: 4,
+        }).setOrigin(0.5);
+
         const cols     = 5;
         const spacingX = 160;
         const spacingY = 180;

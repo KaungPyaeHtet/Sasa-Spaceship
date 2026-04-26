@@ -11,7 +11,7 @@ import { VFX, CARD_COLORS } from '../vfx/VFX';
 import { RANDOM_EVENTS, GameEvent } from '../data/randomEvents';
 import { getCardAtTier, tierForLevel } from '../data/cardUpgrades';
 import { playCardSFX } from '../ui/CardSFX';
-import { stopMusic, playGameMusic, playSFX, playVoiceline, playPixelCrunch, AUDIO } from '../audio/AudioManager';
+import { stopMusic, playGameMusic, playSFX, playCardSound, playVoiceline, playPixelCrunch, AUDIO } from '../audio/AudioManager';
 import { buildHeatBar, buildResourceBars, HeatBarRefs, ResBarRefs } from '../ui/HUDBars';
 import { buildComboPanel } from '../ui/ComboPanel';
 import { showEventBanner } from '../ui/EventBanner';
@@ -307,7 +307,8 @@ export class Game extends Scene {
         const progressRatio = this.calcProgress();
         const dynamicMult   = 1 + heatRatio * 0.6 + progressRatio * 0.4;
         const activeSlots   = this.processing.filter(s => s !== null).length;
-        const idleMult      = activeSlots > 0 ? activeSlots : 0.4;
+        // 0 slots → 0.4×  |  1 slot → 1×  |  2 slots → 1.15×  |  3 slots → 1.3×
+        const idleMult      = activeSlots > 0 ? 1 + (activeSlots - 1) * 0.15 : 0.4;
         this.addHeat(this.levelData.heatPerSecond * this.heatMultiplier * dynamicMult * idleMult * (delta / 1000));
 
         if (!this.processingPaused) {
@@ -331,10 +332,12 @@ export class Game extends Scene {
                         const ratio  = this.resources[slot.card.resource] / needed;
                         this.resBars.fills[slot.card.resource].width = BAR_W * ratio;
                         this.resBars.labels[slot.card.resource].setText(`${Math.floor(this.resources[slot.card.resource])} / ${needed}`);
+                        this.updateMachineStage();
+                        this.checkWinCondition();
                     }
                 }
 
-                if (progress >= 1) this.finishCard(slot, i);
+                if (!this.shipLaunchInProgress && progress >= 1) this.finishCard(slot, i);
             }
         }
     }
@@ -418,7 +421,7 @@ export class Game extends Scene {
         }
 
         const cardSfxKey = playCardSFX(card.id);
-        if (cardSfxKey) playSFX(this, cardSfxKey as import('../audio/AudioManager').AudioKey);
+        if (cardSfxKey) playCardSound(this, cardSfxKey as import('../audio/AudioManager').AudioKey);
         playPixelCrunch(this);
         VFX.burst(this, DROP_ZONE_X, DROP_ZONE_Y, palette.particle, 24);
         VFX.flashAt(this, DROP_ZONE_X, DROP_ZONE_Y, DROP_ZONE_W, DROP_ZONE_H, palette.particle, 0.4);
@@ -633,6 +636,18 @@ export class Game extends Scene {
         if (this.shipLaunchInProgress) return;
         this.shipLaunchInProgress = true;
 
+        // Cancel any cards still processing — launch fires immediately
+        for (let i = 0; i < this.processing.length; i++) {
+            const slot = this.processing[i];
+            if (!slot) continue;
+            this.tweens.add({
+                targets: slot.container, alpha: 0, scaleX: 0.8, scaleY: 0.8,
+                duration: 250, ease: 'Quad.In',
+                onComplete: () => slot.container.destroy(),
+            });
+            this.processing[i] = null;
+        }
+
         this.spaceshipsBuilt++;
         const shipColor = this.spaceshipsBuilt >= 3 ? '#ffcc00'
                         : this.spaceshipsBuilt >= 2 ? '#88ffcc'
@@ -643,6 +658,10 @@ export class Game extends Scene {
         VFX.flashAt(this, 512, 384, 1024, 768, 0x22cc88, 0.5);
         VFX.screenShake(this, 0.006, 350);
         this.machineImg.stop();
+
+        // Heat relief on launch
+        this.addHeat(-20);
+        VFX.floatText(this, DROP_ZONE_X + 160, DROP_ZONE_Y, '−20 🔥', '#88ddff');
 
         // Banner
         VFX.floatText(this, DROP_ZONE_X, DROP_ZONE_Y - 140,

@@ -57,10 +57,7 @@ export class MainMenu extends Scene
         this.tutorialTitle = this.makeClickableText(512, 540, "Tutorial", () => {
             this.scene.start("Tutorial");
         });
-        this.makeClickableText(512, 630, "Cards", () => {
-            this.scene.start("CardInfo");
-        });
-        this.makeClickableText(512, 720, "Credits", () => {
+        this.makeClickableText(512, 630, "Credits", () => {
             this.scene.start("Credits");
         });
 
