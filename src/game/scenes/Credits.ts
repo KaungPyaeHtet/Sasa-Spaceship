@@ -50,14 +50,14 @@ export class Credits extends Scene {
                 container.add(t);
                 offsetY += 56;
             } else {
-                const role = this.add.text(380, offsetY, entry.role, {
+                const role = this.add.text(340, offsetY, entry.role, {
                     fontFamily: 'Supercharge',
                     fontSize: '17px',
                     color: '#888888',
                     align: 'right',
                 }).setOrigin(1, 0);
 
-                const name = this.add.text(400, offsetY, entry.name, {
+                const name = this.add.text(360, offsetY, entry.name, {
                     fontFamily: 'Supercharge',
                     fontSize: '17px',
                     color: '#ffffff',
