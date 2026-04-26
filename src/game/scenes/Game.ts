@@ -111,6 +111,8 @@ export class Game extends Scene {
         this.heatMultiplier   = 1;
         this.processingPaused = false;
         this.powerOnCooldown  = false;
+        this.maxProcSlots     = 1;
+        this.powerUnlocked    = false;
         this.heat42Played     = false;
         this.timeLowPlayed    = false;
         this.usedCombos       = new Set();
