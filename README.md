@@ -1,14 +1,32 @@
 # Sasa Spaces
 
-A card-based space resource management game built with Phaser 3, Vite, and TypeScript.
+> *Manage the machine. Survive the heat.*
+
+A card-based space resource management game built with Phaser 4, Vite, and TypeScript.
 
 ## Gameplay
 
-Play cards to complete products and manage your ship's heat. Each level has a target number of products to complete before your heat reaches the limit. Overheat and it's game over.
+You are the chief engineer of a deep-space rocket factory. Process resource cards to fill your ship's Electricity, Fuel, and Titanium bars — then launch. Do it 3 times before the timer runs out and the reactor overheats.
+
+- Drag cards onto the machine to process them
+- Stack compatible cards for combo bonuses and extra time
+- Unlock Power Mode (3 slots) to run cards simultaneously
+- Survive random events: Meteor Showers, Solar Flares, System Glitches
+- Earn stars across 10 escalating levels
+
+## Team
+
+| Role | Name |
+|------|------|
+| Game Design | Vincent |
+| Coding | Ozzy |
+| Graphic Design & Illustration | Kimmy |
+| Audio & Storyline | Nora |
+| Sound | Alex |
 
 ## Tech Stack
 
-- [Phaser 3.90.0](https://github.com/phaserjs/phaser)
+- [Phaser 4.0.0](https://github.com/phaserjs/phaser)
 - [Vite 6.3.1](https://github.com/vitejs/vite)
 - [TypeScript 5.7.2](https://github.com/microsoft/TypeScript)
 
@@ -30,43 +48,72 @@ The local development server runs on `http://localhost:8080` by default.
 
 ```
 src/game/
+├── audio/
+│   └── AudioManager.ts     — Volume state, music, SFX, voiceline playback
 ├── data/
-│   ├── cards.ts          — Card definitions (heat, products per card)
-│   ├── levels.ts         — Level configs (maxHeat, targetProducts per level)
-│   └── animations.ts     — Global animation keyframe registration
+│   ├── cards.ts            — Card definitions (heat, resources, duration, points)
+│   ├── cardUpgrades.ts     — Tier system mapping cards to level ranges
+│   ├── levels.ts           — Level configs (maxHeat, heatPerSecond, timeLimit, resources needed)
+│   ├── randomEvents.ts     — Random event definitions and level thresholds
+│   ├── animations.ts       — Global animation keyframe registration
+│   └── progress.ts         — Star/progress persistence via localStorage
 ├── ui/
-│   ├── BackButton.ts     — Reusable back button component
-│   ├── CardDisplay.ts    — Reusable card renderer
-│   └── StatusSprite.ts   — Frame-based sprite updater (overheat/spaceship UI)
+│   ├── CardDisplay.ts      — Draggable card + processing slot renderers
+│   ├── CardSFX.ts          — Card ID → audio key mapping
+│   ├── ComboPanel.ts       — Combo banner UI
+│   ├── EventBanner.ts      — Random event warning banner
+│   ├── HUDBars.ts          — Heat bar and resource bar builders
+│   ├── StatusSprite.ts     — Frame-based sprite updater (overheat/spaceship)
+│   ├── BackButton.ts       — Reusable back button component
+│   └── sounds.ts           — Hover SFX helper
+├── vfx/
+│   └── VFX.ts              — Particles, drop zone pulse, float text effects
 └── scenes/
-    ├── Boot.ts           — Loads background image before Preloader
-    ├── Preloader.ts      — Loads all assets, registers global animations, fades in
-    ├── MainMenu.ts       — Title screen with Play / Setting / Tutorial buttons
-    ├── LevelMenu.ts      — Level select grid (1–10)
-    ├── Game.ts           — Core gameplay scene
-    ├── Setting.ts        — Settings screen
-    ├── Tutorial.ts       — Tutorial screen
-    └── GameOver.ts       — Game over screen
+    ├── Boot.ts             — Loads background before Preloader
+    ├── Preloader.ts        — Loads all assets, registers animations
+    ├── Story.ts            — Pre-game story cutscene
+    ├── MainMenu.ts         — Title screen
+    ├── LevelMenu.ts        — Level select grid (1–10) with star display
+    ├── Game.ts             — Core gameplay scene
+    ├── GameOver.ts         — End-of-level result screen
+    ├── PauseMenu.ts        — In-game pause overlay
+    ├── CardInfo.ts         — Card info popup
+    ├── Achievement.ts      — Achievement display
+    ├── Tutorial.ts         — Interactive tutorial overlay
+    ├── Setting.ts          — Volume sliders and settings
+    └── Credits.ts          — Scrolling credits scene
 
 public/assets/
 ├── bg.png
-├── cards/sample_card.png
-├── ui/
-│   ├── button/           — blue.png, yellow.png
-│   ├── box/              — blue.png (level select boxes)
-│   ├── overheat/         — overheat1–8.png (heat status frames)
-│   └── spaceship/        — spaceship1–8.png (product status frames)
+├── logo.png
+├── fonts/supercharge.otf
+├── audio/                  — Background music, SFX, voicelines
+├── cards/                  — Card art across 10 upgrade tiers
+├── spaceships/             — Spaceship sprites per level
+├── machine/                — Machine animation frames
+├── story/                  — Story scene images
+└── ui/                     — Buttons, boxes
 ```
 
 ## Adding Content
 
 **New card** — add an entry to `src/game/data/cards.ts`:
 ```ts
-{ name: "My Card", heat: 10, products: 2 }
+{
+    id: 'mycard',
+    name: 'My Card',
+    imageKey: 'mycard',
+    duration: 2,
+    heat: 3,
+    resource: 'fuel',
+    resourceAmount: 4,
+    points: 2,
+    description: 'Does something cool',
+}
 ```
 
 **New level** — add an entry to `src/game/data/levels.ts`:
 ```ts
-{ maxHeat: 50, targetProducts: 10 }
+{ maxHeat: 100, heatPerSecond: 1.2, timeLimit: 90, star1Pct: 0.35, star2Pct: 0.68, electricityNeeded: 9, fuelNeeded: 9, titaniumNeeded: 9 }
 ```
-Then increment the level count in `LevelMenu.ts`.
+Then update the level count in `LevelMenu.ts`.

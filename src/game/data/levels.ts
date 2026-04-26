@@ -21,5 +21,5 @@ export const levels = [
     // L9 — 5 elec cards / 4 fuel / 3 titanium per ship. Fast heat.
     { maxHeat: 85,  heatPerSecond: 1.6, timeLimit: 120, star1Pct: 0.45, star2Pct: 0.75, electricityNeeded: 21, fuelNeeded: 21, titaniumNeeded: 21 },
     // L10 — Maximum pressure. Combos and coolant are essential.
-    { maxHeat: 80,  heatPerSecond: 1.8, timeLimit: 120, star1Pct: 0.50, star2Pct: 0.80, electricityNeeded: 1, fuelNeeded: 1, titaniumNeeded: 1 },
+    { maxHeat: 80,  heatPerSecond: 1.8, timeLimit: 120, star1Pct: 0.50, star2Pct: 0.80, electricityNeeded: 25, fuelNeeded: 25, titaniumNeeded: 25 },
 ]
